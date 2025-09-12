@@ -41,6 +41,21 @@ export async function POST(request: NextRequest) {
         const qrPaymentId = session.metadata?.qr_payment_id
         
         if (qrPaymentId) {
+          // First, get the QR payment data
+          const { data: qrPayment, error: qrError } = await supabase
+            .from('qr_payments')
+            .select('*')
+            .eq('id', qrPaymentId)
+            .single()
+
+          if (qrError || !qrPayment) {
+            console.error('❌ QR payment not found:', qrError)
+            return NextResponse.json({ received: true })
+          }
+
+          console.log('🔍 Processing QR payment:', qrPaymentId)
+          console.log('📦 QR payment items:', qrPayment.customer_info?.items)
+
           // Update QR payment status
           await supabase
             .from('qr_payments')
@@ -53,24 +68,21 @@ export async function POST(request: NextRequest) {
             })
             .eq('id', qrPaymentId)
 
-          // Process the QR payment to create order
+          // Process the QR payment to create order with full customer info
           const { processQRPayment } = await import('@/lib/qr-payment-handler')
           
           const result = await processQRPayment({
             qrPaymentId: qrPaymentId,
             paymentMethod: 'stripe_checkout',
             transactionId: session.payment_intent as string,
-            amount: session.amount_total || 0,
-            currency: session.currency || 'usd',
-            customerInfo: {
-              name: session.customer_details?.name || '',
-              email: session.customer_details?.email || '',
-              items: [] // Items will be retrieved from QR payment record
-            }
+            amount: session.amount_total || qrPayment.amount,
+            currency: session.currency || qrPayment.currency,
+            customerInfo: qrPayment.customer_info // Use full customer info from QR payment
           })
 
           if (result.success) {
             console.log('✅ Order created successfully:', result.orderId)
+            console.log('📋 Order details:', result)
           } else {
             console.error('❌ Failed to create order:', result.error)
           }
