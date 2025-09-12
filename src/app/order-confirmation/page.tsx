@@ -65,38 +65,109 @@ function OrderConfirmationContent() {
 
   const fetchQRPaymentDetails = async (qrPaymentId: string) => {
     try {
+      console.log('🔍 Fetching QR payment details for:', qrPaymentId);
+      
       // First get the QR payment details
       const qrResponse = await fetch(`/api/stripe-qr-payment/status?qrPaymentId=${qrPaymentId}`);
       const qrData = await qrResponse.json();
       
+      console.log('📋 QR payment data:', qrData);
+      
       if (qrData.success && qrData.qrPayment) {
-        // Get the latest order for this user (should be the one just created)
-        const orderResponse = await fetch('/api/orders');
-        const orderData = await orderResponse.json();
-        
-        if (orderData.success && orderData.orders && orderData.orders.length > 0) {
-          // Get the most recent order
-          const latestOrder = orderData.orders[0];
-          setOrderDetails({
-            id: latestOrder.id,
-            status: latestOrder.status || "confirmed",
-            timestamp: latestOrder.created_at || new Date().toISOString(),
-            total: latestOrder.total,
-            items: latestOrder.items || []
-          });
+        // Check if QR payment is completed
+        if (qrData.qrPayment.status === 'completed') {
+          console.log('✅ QR payment is completed, looking for order...');
+          
+          // Try to find an existing order for this QR payment
+          const orderResponse = await fetch(`/api/orders?qr_payment_id=${qrPaymentId}`);
+          const orderData = await orderResponse.json();
+          
+          if (orderData.success && orderData.order) {
+            console.log('✅ Found existing order:', orderData.order.id);
+            setOrderDetails({
+              id: orderData.order.id,
+              status: orderData.order.status || "confirmed",
+              timestamp: orderData.order.created_at || new Date().toISOString(),
+              total: orderData.order.total,
+              items: orderData.order.items || []
+            });
+          } else {
+            console.log('⚠️ No order found, attempting to create one...');
+            
+            // Try to manually trigger order creation as a fallback
+            try {
+              const createOrderResponse = await fetch('/api/stripe-qr-payment/process', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  qrPaymentId: qrPaymentId,
+                  paymentMethod: 'stripe_checkout'
+                })
+              });
+              
+              const createResult = await createOrderResponse.json();
+              
+              if (createResult.success && createResult.orderId) {
+                console.log('✅ Order created successfully via fallback:', createResult.orderId);
+                setOrderDetails({
+                  id: createResult.orderId,
+                  status: "confirmed",
+                  timestamp: new Date().toISOString(),
+                  total: qrData.qrPayment.amount / 100, // Convert from cents
+                  items: qrData.qrPayment.customer_info.items || []
+                });
+              } else {
+                console.log('❌ Failed to create order via fallback:', createResult.error);
+                // Fallback: create order details from QR payment data
+                setOrderDetails({
+                  id: qrPaymentId,
+                  status: "confirmed",
+                  timestamp: new Date().toISOString(),
+                  total: qrData.qrPayment.amount / 100, // Convert from cents
+                  items: qrData.qrPayment.customer_info.items || []
+                });
+              }
+            } catch (fallbackError) {
+              console.error('❌ Fallback order creation failed:', fallbackError);
+              // Final fallback: create order details from QR payment data
+              setOrderDetails({
+                id: qrPaymentId,
+                status: "confirmed",
+                timestamp: new Date().toISOString(),
+                total: qrData.qrPayment.amount / 100, // Convert from cents
+                items: qrData.qrPayment.customer_info.items || []
+              });
+            }
+          }
         } else {
-          // Fallback: create order details from QR payment data
-          setOrderDetails({
-            id: qrPaymentId,
-            status: "confirmed",
-            timestamp: new Date().toISOString(),
-            total: qrData.qrPayment.amount, // Amount is already in dollars
-            items: qrData.qrPayment.customer_info.items || []
-          });
+          console.log('⚠️ QR payment not yet completed, status:', qrData.qrPayment.status);
+          // Payment not completed yet, redirect back to payment page
+          setTimeout(() => {
+            window.location.href = `/qr-pay/${qrPaymentId}`;
+          }, 2000);
+          return;
         }
+      } else {
+        console.error('❌ Failed to fetch QR payment details:', qrData.error);
+        setOrderDetails({
+          id: qrPaymentId,
+          status: "confirmed",
+          timestamp: new Date().toISOString(),
+          total: 0,
+          items: []
+        });
       }
     } catch (error) {
       console.error("Error fetching QR payment details:", error);
+      setOrderDetails({
+        id: qrPaymentId,
+        status: "confirmed",
+        timestamp: new Date().toISOString(),
+        total: 0,
+        items: []
+      });
     } finally {
       setIsLoading(false);
     }

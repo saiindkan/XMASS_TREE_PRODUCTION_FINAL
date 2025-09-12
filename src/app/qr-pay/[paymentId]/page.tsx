@@ -135,7 +135,7 @@ export default function QRPaymentPage() {
           setPaymentStatus('completed')
           // Redirect to success page after 3 seconds
           setTimeout(() => {
-            window.location.href = '/order-confirmation'
+            window.location.href = `/order-confirmation?qr_payment_id=${paymentId}`
           }, 3000)
         } else {
           setError(result.error || 'Payment failed')

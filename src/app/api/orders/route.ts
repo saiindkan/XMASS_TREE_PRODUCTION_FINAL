@@ -227,6 +227,87 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const qrPaymentId = searchParams.get('qr_payment_id');
+    const paymentIntentId = searchParams.get('id');
+    
+    // If querying by QR payment ID, we don't need authentication
+    if (qrPaymentId) {
+      console.log('🔍 Querying order by QR payment ID:', qrPaymentId);
+      
+      const supabaseAdmin = createServerSupabaseAdminClient();
+      
+      // Find order by QR payment reference
+      const { data: order, error: orderError } = await supabaseAdmin
+        .from('orders')
+        .select(`
+          *,
+          customers(
+            first_name,
+            last_name,
+            email,
+            phone,
+            company
+          )
+        `)
+        .eq('payment_reference', qrPaymentId)
+        .single();
+      
+      if (orderError || !order) {
+        console.error('❌ Order not found for QR payment ID:', qrPaymentId, orderError);
+        return NextResponse.json(
+          { error: 'Order not found' },
+          { status: 404 }
+        );
+      }
+      
+      console.log('✅ Found order for QR payment:', order.id);
+      
+      return NextResponse.json({
+        success: true,
+        order: order
+      });
+    }
+    
+    // If querying by payment intent ID, we don't need authentication
+    if (paymentIntentId) {
+      console.log('🔍 Querying order by payment intent ID:', paymentIntentId);
+      
+      const supabaseAdmin = createServerSupabaseAdminClient();
+      
+      // Find order by payment intent ID
+      const { data: order, error: orderError } = await supabaseAdmin
+        .from('orders')
+        .select(`
+          *,
+          customers(
+            first_name,
+            last_name,
+            email,
+            phone,
+            company
+          )
+        `)
+        .eq('payment_intent_id', paymentIntentId)
+        .single();
+      
+      if (orderError || !order) {
+        console.error('❌ Order not found for payment intent ID:', paymentIntentId, orderError);
+        return NextResponse.json(
+          { error: 'Order not found' },
+          { status: 404 }
+        );
+      }
+      
+      console.log('✅ Found order for payment intent:', order.id);
+      
+      return NextResponse.json({
+        success: true,
+        order: order
+      });
+    }
+    
+    // Regular authenticated user order fetching
     const session = await getSession();
     if (!session?.user?.email) {
       return NextResponse.json(

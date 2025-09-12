@@ -111,6 +111,9 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
     // Create order record
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`
     
+    console.log('🔍 Creating order with number:', orderNumber)
+    console.log('🔍 QR payment customer info:', JSON.stringify(qrPayment.customer_info, null, 2))
+    
     // Ensure customer record exists for authenticated users
     let customerId = null
     if (qrPayment.customer_info?.user_id) {
@@ -223,6 +226,8 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
       total: total,
       currency: qrPayment.currency,
       status: 'paid',
+      payment_status: 'succeeded', // Add payment status
+      payment_intent_id: transactionId, // Add payment intent ID
       payment_method: paymentMethodLabel, // Use user-friendly label
       payment_reference: qrPaymentId,
       notes: `QR Payment completed via ${paymentMethod}`
@@ -244,7 +249,9 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
     console.log('🔍 Order data before creation:', {
       user_id: orderData.user_id,
       customer_id: orderData.customer_id,
-      order_number: orderData.order_number
+      order_number: orderData.order_number,
+      payment_status: orderData.payment_status,
+      payment_intent_id: orderData.payment_intent_id
     })
 
     console.log('🔍 Debug - Attempting to create order with data:', JSON.stringify(orderData, null, 2))
@@ -257,13 +264,39 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
 
     if (orderError) {
       console.error('❌ Order creation error:', orderError)
+      console.error('❌ Order data that failed:', JSON.stringify(orderData, null, 2))
       return {
         success: false,
-        error: 'Failed to create order'
+        error: `Failed to create order: ${orderError.message || 'Unknown error'}`
       }
     }
 
     console.log('✅ Order created successfully:', order.id, order.order_number)
+    console.log('✅ Order details:', JSON.stringify(order, null, 2))
+
+    // Create payment record in payments table (similar to update-order-status API)
+    try {
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          order_id: order.id,
+          amount: Math.round(total * 100), // Convert to cents for payments table
+          payment_method: 'qr_payment',
+          payment_status: 'completed',
+          transaction_id: transactionId,
+          payment_date: new Date().toISOString()
+        })
+
+      if (paymentError) {
+        console.error('Payment record creation error:', paymentError)
+        // Don't fail the request, just log the error
+      } else {
+        console.log(`✅ Payment record created for order ${order.id}`)
+      }
+    } catch (error) {
+      console.error('Payment table might not exist:', error)
+      // Continue without creating payment record
+    }
 
     // Create payment transaction record (if table exists)
     try {
