@@ -31,13 +31,22 @@ export default function QRPaymentPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [processing, setProcessing] = useState(false)
-  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'completed' | 'failed'>('pending')
+  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'completed' | 'failed' | 'expired'>('pending')
 
   useEffect(() => {
     if (paymentId) {
       fetchPaymentData()
+      
+      // Set up periodic status checking for pending payments
+      const interval = setInterval(() => {
+        if (paymentStatus === 'pending') {
+          fetchPaymentData()
+        }
+      }, 3000) // Check every 3 seconds
+      
+      return () => clearInterval(interval)
     }
-  }, [paymentId])
+  }, [paymentId, paymentStatus])
 
   const fetchPaymentData = async () => {
     try {
@@ -52,7 +61,17 @@ export default function QRPaymentPage() {
         
         if (payment) {
           setPaymentData(payment)
-          setPaymentStatus(data.status === 'completed' ? 'completed' : 'pending')
+          
+          // Set payment status based on QR payment status
+          if (payment.status === 'completed') {
+            setPaymentStatus('completed')
+          } else if (payment.status === 'failed') {
+            setPaymentStatus('failed')
+          } else if (payment.status === 'expired') {
+            setPaymentStatus('expired')
+          } else {
+            setPaymentStatus('pending')
+          }
         } else {
           setError('Payment not found')
         }
@@ -163,7 +182,67 @@ export default function QRPaymentPage() {
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h2>
           <p className="text-gray-600 mb-4">Your payment has been processed successfully</p>
-          <p className="text-sm text-gray-500">Redirecting to confirmation page...</p>
+          <p className="text-sm text-gray-500 mb-6">Redirecting to confirmation page...</p>
+          <button 
+            onClick={() => window.location.href = '/order-confirmation'}
+            className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            View Order Confirmation
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (paymentStatus === 'failed') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-red-100 flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Failed</h2>
+          <p className="text-gray-600 mb-4">Your payment could not be processed</p>
+          <p className="text-sm text-gray-500 mb-6">Please try again or contact support</p>
+          <div className="space-x-4">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Try Again
+            </button>
+            <button 
+              onClick={() => window.location.href = '/'}
+              className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Go Home
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (paymentStatus === 'expired') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-yellow-100 flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Expired</h2>
+          <p className="text-gray-600 mb-4">This payment session has expired</p>
+          <p className="text-sm text-gray-500 mb-6">Please create a new payment</p>
+          <div className="space-x-4">
+            <button 
+              onClick={() => window.location.href = '/checkout'}
+              className="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+            >
+              Create New Payment
+            </button>
+            <button 
+              onClick={() => window.location.href = '/'}
+              className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Go Home
+            </button>
+          </div>
         </div>
       </div>
     )
