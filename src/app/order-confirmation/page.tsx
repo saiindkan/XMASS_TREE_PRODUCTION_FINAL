@@ -14,8 +14,12 @@ function OrderConfirmationContent() {
     // Get payment intent ID from URL if available
     const paymentIntentId = searchParams.get("payment_intent");
     const paymentIntentClientSecret = searchParams.get("payment_intent_client_secret");
+    const qrPaymentId = searchParams.get("qr_payment_id");
 
-    if (paymentIntentId) {
+    if (qrPaymentId) {
+      // Handle QR payment confirmation
+      fetchQRPaymentDetails(qrPaymentId);
+    } else if (paymentIntentId) {
       // Fetch order details from API using payment intent ID
       fetchOrderDetails(paymentIntentId);
     } else {
@@ -54,6 +58,45 @@ function OrderConfirmationContent() {
         status: "confirmed",
         timestamp: new Date().toISOString(),
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchQRPaymentDetails = async (qrPaymentId: string) => {
+    try {
+      // First get the QR payment details
+      const qrResponse = await fetch(`/api/stripe-qr-payment/status?qrPaymentId=${qrPaymentId}`);
+      const qrData = await qrResponse.json();
+      
+      if (qrData.success && qrData.qrPayment) {
+        // Get the latest order for this user (should be the one just created)
+        const orderResponse = await fetch('/api/orders');
+        const orderData = await orderResponse.json();
+        
+        if (orderData.success && orderData.orders && orderData.orders.length > 0) {
+          // Get the most recent order
+          const latestOrder = orderData.orders[0];
+          setOrderDetails({
+            id: latestOrder.id,
+            status: latestOrder.status || "confirmed",
+            timestamp: latestOrder.created_at || new Date().toISOString(),
+            total: latestOrder.total,
+            items: latestOrder.items || []
+          });
+        } else {
+          // Fallback: create order details from QR payment data
+          setOrderDetails({
+            id: qrPaymentId,
+            status: "confirmed",
+            timestamp: new Date().toISOString(),
+            total: qrData.qrPayment.amount / 100,
+            items: qrData.qrPayment.customer_info.items || []
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching QR payment details:", error);
     } finally {
       setIsLoading(false);
     }

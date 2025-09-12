@@ -70,28 +70,53 @@ export default function QRPaymentPage() {
     setProcessing(true)
     
     try {
-      const response = await fetch('/api/stripe-qr-payment/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          qrPaymentId: paymentId,
-          paymentMethod: paymentMethod === 'mobile' ? 'test_payment' : 'card_payment'
+      if (paymentMethod === 'mobile') {
+        // For mobile payments, redirect to Stripe's hosted payment page
+        // which will handle Apple Pay, Google Pay, etc.
+        const response = await fetch('/api/stripe-qr-payment/create-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            qrPaymentId: paymentId
+          })
         })
-      })
 
-      const result = await response.json()
-      
-      if (result.success) {
-        setPaymentStatus('completed')
-        // Redirect to success page after 3 seconds
-        setTimeout(() => {
-          window.location.href = '/order-confirmation'
-        }, 3000)
+        const result = await response.json()
+        
+        if (result.success && result.checkoutUrl) {
+          // Redirect to Stripe's checkout page
+          window.location.href = result.checkoutUrl
+        } else {
+          setError(result.error || 'Failed to create checkout session')
+          setPaymentStatus('failed')
+        }
       } else {
-        setError(result.error || 'Payment failed')
-        setPaymentStatus('failed')
+        // For card payments, use the existing process
+        const response = await fetch('/api/stripe-qr-payment/process', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            qrPaymentId: paymentId,
+            paymentMethod: 'card_payment'
+          })
+        })
+
+        const result = await response.json()
+        
+        if (result.success) {
+          setPaymentStatus('completed')
+          // Redirect to success page after 3 seconds
+          setTimeout(() => {
+            window.location.href = '/order-confirmation'
+          }, 3000)
+        } else {
+          setError(result.error || 'Payment failed')
+          setPaymentStatus('failed')
+        }
       }
     } catch (err) {
       setError('Payment processing failed')
