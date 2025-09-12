@@ -252,12 +252,15 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Get orders with customer information (removed payment_transactions join due to missing relationship)
-    const { data: orders, error: ordersError } = await supabaseAdmin
+    // Get orders - try with customer join first, fallback to order only
+    let orders, ordersError
+    
+    // Try to fetch with customer join
+    const { data: ordersWithCustomer, error: customerJoinError } = await supabaseAdmin
       .from('orders')
       .select(`
         *,
-        customers!inner(
+        customers(
           first_name,
           last_name,
           email,
@@ -267,6 +270,22 @@ export async function GET(request: NextRequest) {
       `)
       .eq('user_id', dbUser.id)
       .order('created_at', { ascending: false });
+    
+    if (customerJoinError) {
+      console.log('Customer join failed, fetching orders without customer data:', customerJoinError.message);
+      // Fallback: fetch orders without customer join
+      const { data: ordersOnly, error: ordersOnlyError } = await supabaseAdmin
+        .from('orders')
+        .select('*')
+        .eq('user_id', dbUser.id)
+        .order('created_at', { ascending: false });
+      
+      orders = ordersOnly
+      ordersError = ordersOnlyError
+    } else {
+      orders = ordersWithCustomer
+      ordersError = null
+    }
 
     if (ordersError) {
       console.error('❌ Error fetching orders:', ordersError);
@@ -333,11 +352,11 @@ export async function GET(request: NextRequest) {
           product_image: item.image
         })) : [],
         customer: {
-          firstName: order.customers.first_name,
-          lastName: order.customers.last_name,
-          email: order.customers.email,
-          phone: order.customers.phone,
-          company: order.customers.company
+          firstName: order.customers?.first_name || order.customer_info?.name?.split(' ')[0] || 'Customer',
+          lastName: order.customers?.last_name || order.customer_info?.name?.split(' ')[1] || 'User',
+          email: order.customers?.email || order.customer_info?.email || 'customer@example.com',
+          phone: order.customers?.phone || order.customer_info?.phone || '',
+          company: order.customers?.company || order.customer_info?.company || ''
         },
         billing_address: null, // Will be added later when we fix the relationship
         shipping_address: null, // Will be added later when we fix the relationship

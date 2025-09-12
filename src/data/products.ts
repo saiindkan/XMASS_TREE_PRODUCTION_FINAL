@@ -14,6 +14,16 @@ export interface Product {
 }
 
 const products: Product[] = [
+  // Test Product - $1.00
+  {
+    id: 0,
+    name: "Test Product - $1.00",
+    images: ["/1.jpg"],
+    category: "Test Products",
+    price: 1.00,
+    description: "A simple test product for $1.00 to verify payment processing and order functionality"
+  },
+
   // King Fraser Fir
   {
     id: 1,

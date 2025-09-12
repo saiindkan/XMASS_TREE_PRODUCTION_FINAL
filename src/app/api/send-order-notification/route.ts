@@ -56,12 +56,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 })
     }
 
-    // Fetch order details with customer information (removed customer_addresses join due to missing relationship)
-    const { data: order, error: orderError } = await supabaseAdmin
+    // Fetch order details - try with customer join first, fallback to order only
+    let order, orderError
+    
+    // Try to fetch with customer join
+    const { data: orderWithCustomer, error: customerJoinError } = await supabaseAdmin
       .from('orders')
       .select(`
         *,
-        customers!inner(
+        customers(
           first_name,
           last_name,
           email,
@@ -71,6 +74,22 @@ export async function POST(request: NextRequest) {
       `)
       .eq('id', orderId)
       .single()
+    
+    if (customerJoinError) {
+      console.log('Customer join failed, fetching order without customer data:', customerJoinError.message)
+      // Fallback: fetch order without customer join
+      const { data: orderOnly, error: orderOnlyError } = await supabaseAdmin
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single()
+      
+      order = orderOnly
+      orderError = orderOnlyError
+    } else {
+      order = orderWithCustomer
+      orderError = null
+    }
 
     if (orderError || !order) {
       console.error('Error fetching order:', orderError)
@@ -82,9 +101,12 @@ export async function POST(request: NextRequest) {
     // Transform order data for email template
     const emailOrderData = {
       ...order,
-      customer_name: `${order.customers.first_name} ${order.customers.last_name}`,
-      customer_email: order.customers.email,
-      customer_phone: order.customers.phone,
+      customer_name: order.customers ? 
+        `${order.customers.first_name || ''} ${order.customers.last_name || ''}`.trim() || 
+        (order.customer_info?.name || 'Customer') : 
+        (order.customer_info?.name || 'Customer'),
+      customer_email: order.customers?.email || order.customer_info?.email || 'customer@example.com',
+      customer_phone: order.customers?.phone || order.customer_info?.phone || '',
       billing_address: order.billing_address ? {
         street: order.billing_address.street || order.billing_address.address_line_1 || 'Address not available',
         city: order.billing_address.city || 'City not available',
@@ -92,11 +114,11 @@ export async function POST(request: NextRequest) {
         zip_code: order.billing_address.zip_code || order.billing_address.postal_code || 'ZIP not available',
         country: order.billing_address.country || 'US'
       } : {
-        street: 'Address not available',
-        city: 'City not available',
-        state: 'State not available',
-        zip_code: 'ZIP not available',
-        country: 'US'
+        street: order.customer_info?.address?.line1 || 'Address not available',
+        city: order.customer_info?.address?.city || 'City not available',
+        state: order.customer_info?.address?.state || 'State not available',
+        zip_code: order.customer_info?.address?.postal_code || 'ZIP not available',
+        country: order.customer_info?.address?.country || 'US'
       },
       items: Array.isArray(order.items) ? order.items.map((item: any) => ({
         product_name: item.name,

@@ -5,10 +5,33 @@ import { useSession } from "next-auth/react";
 
 export default function HeroPremium() {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [snowflakes, setSnowflakes] = useState<Array<{
+    id: number;
+    width: number;
+    height: number;
+    left: number;
+    animationDelay: number;
+    animationDuration: number;
+  }>>([]);
   const { data: session, status } = useSession();
 
   useEffect(() => {
     setIsLoaded(true);
+    
+    // Generate snowflakes only on client side to avoid hydration mismatch
+    const generateSnowflakes = () => {
+      const flakes = Array.from({ length: 50 }, (_, i) => ({
+        id: i,
+        width: 2 + Math.random() * 4,
+        height: 2 + Math.random() * 4,
+        left: Math.random() * 100,
+        animationDelay: Math.random() * 3,
+        animationDuration: 8 + Math.random() * 4,
+      }));
+      setSnowflakes(flakes);
+    };
+    
+    generateSnowflakes();
   }, []);
 
   // Choose background based on login status
@@ -40,17 +63,17 @@ export default function HeroPremium() {
 
       {/* Christmas Snowfall Effect */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(50)].map((_, i) => (
+        {snowflakes.map((flake) => (
           <div
-            key={i}
+            key={flake.id}
             className={`absolute bg-white/40 rounded-full`}
             style={{
-              width: `${2 + Math.random() * 4}px`,
-              height: `${2 + Math.random() * 4}px`,
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 3}s`,
-              animationDuration: `${8 + Math.random() * 4}s`,
-              animation: `snowfall ${8 + Math.random() * 4}s linear infinite`,
+              width: `${flake.width}px`,
+              height: `${flake.height}px`,
+              left: `${flake.left}%`,
+              animationDelay: `${flake.animationDelay}s`,
+              animationDuration: `${flake.animationDuration}s`,
+              animation: `snowfall ${flake.animationDuration}s linear infinite`,
             }}
           />
         ))}
