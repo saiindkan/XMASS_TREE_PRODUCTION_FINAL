@@ -50,12 +50,25 @@ export default function QRPaymentPage() {
 
   const fetchPaymentData = async () => {
     try {
+      console.log('🔍 Fetching QR payment data for:', paymentId)
+      
       const response = await fetch(`/api/stripe-qr-payment/status?qrPaymentId=${paymentId}`)
       const data = await response.json()
+      
+      console.log('📋 QR payment status response:', data)
       
       if (data.success) {
         // Use the real-time status from the status API
         const realTimeStatus = data.status
+        
+        // Check if payment is expired
+        if (realTimeStatus === 'expired') {
+          console.log('⚠️ QR payment has expired')
+          setPaymentStatus('expired')
+          setError('This payment link has expired. Please create a new payment.')
+          setLoading(false)
+          return
+        }
         
         // Fetch full payment data for display
         const fullResponse = await fetch(`/api/debug-qr-payments`)
@@ -65,11 +78,19 @@ export default function QRPaymentPage() {
         if (payment) {
           // Update the payment data with real-time status
           const updatedPayment = { ...payment, status: realTimeStatus }
+          console.log('🔍 QR Payment data:', updatedPayment)
+          console.log('🔍 Items data:', updatedPayment.customer_info?.items)
+          console.log('🔍 Amount data:', updatedPayment.amount)
           setPaymentData(updatedPayment)
           
           // Set payment status based on REAL-TIME status from status API
           if (realTimeStatus === 'completed') {
+            console.log('✅ Payment already completed, redirecting to success page')
             setPaymentStatus('completed')
+            // Redirect to success page after a short delay
+            setTimeout(() => {
+              window.location.href = `/order-confirmation?qr_payment_id=${paymentId}`
+            }, 2000)
           } else if (realTimeStatus === 'failed') {
             setPaymentStatus('failed')
           } else if (realTimeStatus === 'expired') {
@@ -81,9 +102,10 @@ export default function QRPaymentPage() {
           setError('Payment not found')
         }
       } else {
-        setError('Failed to load payment data')
+        setError(data.error || 'Failed to load payment data')
       }
     } catch (err) {
+      console.error('❌ Error loading payment data:', err)
       setError('Error loading payment data')
     } finally {
       setLoading(false)
@@ -132,12 +154,14 @@ export default function QRPaymentPage() {
         const result = await response.json()
         
         if (result.success) {
+          console.log('✅ Card payment completed successfully')
           setPaymentStatus('completed')
-          // Redirect to success page after 3 seconds
+          // Redirect to success page immediately
           setTimeout(() => {
             window.location.href = `/order-confirmation?qr_payment_id=${paymentId}`
-          }, 3000)
+          }, 1500)
         } else {
+          console.error('❌ Card payment failed:', result.error)
           setError(result.error || 'Payment failed')
           setPaymentStatus('failed')
         }
@@ -187,13 +211,21 @@ export default function QRPaymentPage() {
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h2>
           <p className="text-gray-600 mb-4">Your payment has been processed successfully</p>
-          <p className="text-sm text-gray-500 mb-6">Redirecting to confirmation page...</p>
-          <button 
-            onClick={() => window.location.href = '/order-confirmation'}
-            className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-          >
-            View Order Confirmation
-          </button>
+          <p className="text-sm text-gray-500 mb-6">Redirecting to order confirmation...</p>
+          <div className="space-x-4">
+            <button 
+              onClick={() => window.location.href = `/order-confirmation?qr_payment_id=${paymentId}`}
+              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              View Order Confirmation
+            </button>
+            <button 
+              onClick={() => window.location.href = '/orders'}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Go to My Orders
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -231,15 +263,21 @@ export default function QRPaymentPage() {
       <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-yellow-100 flex items-center justify-center">
         <div className="text-center">
           <XCircle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Expired</h2>
-          <p className="text-gray-600 mb-4">This payment session has expired</p>
-          <p className="text-sm text-gray-500 mb-6">Please create a new payment</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Link Expired</h2>
+          <p className="text-gray-600 mb-4">This QR payment link is no longer active</p>
+          <p className="text-sm text-gray-500 mb-6">QR payment links expire after 15 minutes for security</p>
           <div className="space-x-4">
             <button 
               onClick={() => window.location.href = '/checkout'}
               className="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
             >
               Create New Payment
+            </button>
+            <button 
+              onClick={() => window.location.href = '/orders'}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              View My Orders
             </button>
             <button 
               onClick={() => window.location.href = '/'}
@@ -267,28 +305,41 @@ export default function QRPaymentPage() {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Order Summary</h2>
           
           <div className="space-y-3 mb-4">
-            {paymentData.customer_info.items.map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <img 
-                    src={item.image} 
-                    alt={item.name}
-                    className="w-12 h-12 object-cover rounded-lg"
-                  />
-                  <div>
-                    <p className="font-medium text-gray-900">{item.name}</p>
-                    <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+            {paymentData.customer_info.items.map((item, index) => {
+              // Ensure price is properly formatted
+              const itemPrice = typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0;
+              const itemTotal = itemPrice * (item.quantity || 1);
+              
+              return (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <img 
+                      src={item.image || '/placeholder-image.jpg'} 
+                      alt={item.name}
+                      className="w-12 h-12 object-cover rounded-lg"
+                    />
+                    <div>
+                      <p className="font-medium text-gray-900">{item.name}</p>
+                      <p className="text-sm text-gray-500">Qty: {item.quantity || 1}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900">${itemPrice.toFixed(2)}</p>
+                    {item.quantity > 1 && (
+                      <p className="text-sm text-gray-500">Total: ${itemTotal.toFixed(2)}</p>
+                    )}
                   </div>
                 </div>
-                <p className="font-semibold text-gray-900">${item.price.toFixed(2)}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="border-t pt-4">
             <div className="flex justify-between items-center text-lg font-semibold">
               <span>Total:</span>
-              <span className="text-emerald-600">${paymentData.amount.toFixed(2)}</span>
+              <span className="text-emerald-600">
+                ${typeof paymentData.amount === 'number' ? paymentData.amount.toFixed(2) : (parseFloat(paymentData.amount) || 0).toFixed(2)}
+              </span>
             </div>
           </div>
         </div>

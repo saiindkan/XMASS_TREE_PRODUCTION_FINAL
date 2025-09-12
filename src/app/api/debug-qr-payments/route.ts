@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       qrPayments: qrPayments.map(qrPayment => ({
         id: qrPayment.id,
-        amount: qrPayment.amount,
+        amount: qrPayment.amount / 100, // Convert from cents to dollars for display
         currency: qrPayment.currency,
         status: qrPayment.status,
         customer_info: qrPayment.customer_info,

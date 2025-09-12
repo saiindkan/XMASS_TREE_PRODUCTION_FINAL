@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
           success: true,
           status: newStatus,
           stripeStatus: paymentIntent.status,
-          amount: qrPayment.amount, // Amount is already in dollars
+          amount: qrPayment.amount / 100, // Convert from cents to dollars
           currency: qrPayment.currency,
           paymentMethod: typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.type,
           lastUpdated: new Date().toISOString()
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           success: true,
           status: qrPayment.status,
-          amount: qrPayment.amount, // Amount is already in dollars
+          amount: qrPayment.amount / 100, // Convert from cents to dollars
           currency: qrPayment.currency,
           lastUpdated: qrPayment.updated_at
         })
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       status: qrPayment.status,
-      amount: qrPayment.amount, // Amount is already in dollars
+      amount: qrPayment.amount / 100, // Convert from cents to dollars
       currency: qrPayment.currency,
       lastUpdated: qrPayment.updated_at
     })
