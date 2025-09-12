@@ -54,20 +54,25 @@ export default function QRPaymentPage() {
       const data = await response.json()
       
       if (data.success) {
-        // Fetch full payment data
+        // Use the real-time status from the status API
+        const realTimeStatus = data.status
+        
+        // Fetch full payment data for display
         const fullResponse = await fetch(`/api/debug-qr-payments`)
         const fullData = await fullResponse.json()
         const payment = fullData.qrPayments.find((p: any) => p.id === paymentId)
         
         if (payment) {
-          setPaymentData(payment)
+          // Update the payment data with real-time status
+          const updatedPayment = { ...payment, status: realTimeStatus }
+          setPaymentData(updatedPayment)
           
-          // Set payment status based on QR payment status
-          if (payment.status === 'completed') {
+          // Set payment status based on REAL-TIME status from status API
+          if (realTimeStatus === 'completed') {
             setPaymentStatus('completed')
-          } else if (payment.status === 'failed') {
+          } else if (realTimeStatus === 'failed') {
             setPaymentStatus('failed')
-          } else if (payment.status === 'expired') {
+          } else if (realTimeStatus === 'expired') {
             setPaymentStatus('expired')
           } else {
             setPaymentStatus('pending')
@@ -283,7 +288,7 @@ export default function QRPaymentPage() {
           <div className="border-t pt-4">
             <div className="flex justify-between items-center text-lg font-semibold">
               <span>Total:</span>
-              <span className="text-emerald-600">${(paymentData.amount / 100).toFixed(2)}</span>
+              <span className="text-emerald-600">${paymentData.amount.toFixed(2)}</span>
             </div>
           </div>
         </div>

@@ -415,6 +415,8 @@ const PaymentMethodStep = ({
     setPaymentError('')
     setErrors({})
 
+    let responseData: any = null
+
     try {
       if (selectedPaymentMethod === 'card') {
         // Handle card payment
@@ -436,6 +438,7 @@ const PaymentMethodStep = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            items: cart, // Include cart items
             amount: Math.round(formData.total * 100), // Convert to cents
             currency: 'usd',
             customerInfo: {
@@ -453,10 +456,25 @@ const PaymentMethodStep = ({
           })
         })
 
-        const { client_secret } = await response.json()
+        responseData = await response.json()
+        
+        console.log('📥 Payment intent response:', responseData)
+        
+        if (!response.ok) {
+          throw new Error(responseData.error || 'Payment intent creation failed')
+        }
+        
+        const { client_secret } = responseData
+        
+        if (!client_secret) {
+          throw new Error('No client secret received from server')
+        }
+        
+        console.log('✅ Payment intent created, proceeding with confirmation...')
 
         // Confirm payment
-        const { error } = await stripe.confirmCardPayment(client_secret, {
+        console.log('🔄 Confirming payment with Stripe...')
+        const { error, paymentIntent } = await stripe.confirmCardPayment(client_secret, {
           payment_method: {
             card: cardElement,
             billing_details: {
@@ -474,11 +492,43 @@ const PaymentMethodStep = ({
           }
         })
 
+        console.log('💳 Payment confirmation result:', { error, paymentIntent })
+
         if (error) {
+          console.error('❌ Payment failed:', error)
           setPaymentError(error.message || 'Payment failed')
           setIsProcessing(false)
         } else {
-          // Payment successful
+          // Payment successful - update order status
+          console.log('✅ Payment confirmed successfully!')
+          console.log('📋 Payment intent details:', paymentIntent)
+          
+          // Update order status to paid
+          try {
+            console.log('🔄 Updating order status...')
+            const updateResponse = await fetch('/api/update-order-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderId: responseData.orderId,
+                status: 'paid',
+                paymentStatus: 'succeeded',
+                paymentIntentId: paymentIntent?.id || responseData.paymentIntentId || 'unknown'
+              })
+            })
+            
+            const updateResult = await updateResponse.json()
+            console.log('📝 Update response:', updateResult)
+            
+            if (updateResponse.ok) {
+              console.log('✅ Order status updated to paid successfully!')
+            } else {
+              console.error('❌ Failed to update order status:', updateResult)
+            }
+          } catch (updateError) {
+            console.error('❌ Error updating order status:', updateError)
+          }
+          
           onComplete()
         }
       } else {
@@ -798,6 +848,14 @@ const CheckoutForm = () => {
   const router = useRouter()
   
   const [currentStep, setCurrentStep] = useState<'info' | 'payment' | 'success'>('info')
+  // Calculate total with tax (8% tax rate)
+  const calculateTotalWithTax = () => {
+    const subtotal = getCartTotal()
+    const taxRate = 0.08
+    const taxAmount = Math.round(subtotal * taxRate * 100) / 100
+    return subtotal + taxAmount
+  }
+
   const [formData, setFormData] = useState({
     cardholderName: '',
     email: '',
@@ -806,9 +864,17 @@ const CheckoutForm = () => {
     city: '',
     state: '',
     zipCode: '',
-    total: getCartTotal()
+    total: calculateTotalWithTax()
   })
   const [errors, setErrors] = useState<any>({})
+
+  // Update total when cart changes
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      total: calculateTotalWithTax()
+    }))
+  }, [cart, getCartTotal])
 
   // Redirect if cart is empty (but not if we're on success step)
   if (cart.length === 0 && currentStep !== 'success') {

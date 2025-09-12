@@ -296,7 +296,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform the data for frontend consumption
-    const transformedOrders = orders.map(order => {
+    const transformedOrders = await Promise.all(orders.map(async order => {
       // Determine payment status based on order status and available data
       let paymentStatus = 'pending';
       let paymentIntentId = null;
@@ -323,8 +323,45 @@ export async function GET(request: NextRequest) {
       // Determine payment method if available
       if (order.payment_method) {
         paymentMethod = order.payment_method;
+        
+        // Enhance QR payment method identification
+        if (order.payment_method === 'qr_payment' || order.payment_method === 'stripe_qr') {
+          // Try to get more specific payment method from QR payment record
+          try {
+            const qrPaymentResult = await supabaseAdmin
+              .from('qr_payments')
+              .select('payment_method, notes')
+              .eq('id', order.payment_reference || '')
+              .single();
+            
+            const qrPayment = qrPaymentResult.data;
+            
+            if (qrPayment?.payment_method) {
+              // Map specific payment methods to user-friendly names
+              switch (qrPayment.payment_method) {
+                case 'apple_pay':
+                  paymentMethod = 'Apple Pay';
+                  break;
+                case 'google_pay':
+                  paymentMethod = 'Google Pay';
+                  break;
+                case 'test_payment':
+                  paymentMethod = 'QR Payment'; // Changed from 'Test Payment' to 'QR Payment'
+                  break;
+                case 'card':
+                  paymentMethod = 'Card (QR)';
+                  break;
+                default:
+                  paymentMethod = 'QR Payment';
+              }
+            }
+          } catch (error) {
+            // If QR payment lookup fails, keep the original method
+            console.log('Could not fetch QR payment details:', error);
+          }
+        }
       } else if (order.payment_intent_id) {
-        paymentMethod = 'stripe'; // Default to Stripe if we have a payment intent
+        paymentMethod = 'Card Payment'; // More descriptive for card payments
       }
       
       return {
@@ -366,7 +403,7 @@ export async function GET(request: NextRequest) {
         payment_intent_id: paymentIntentId,
         payment_method: paymentMethod
       };
-    });
+    }));
 
     return NextResponse.json({ orders: transformedOrders });
 

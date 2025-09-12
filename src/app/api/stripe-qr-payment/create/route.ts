@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       .from('qr_payments')
       .insert({
         id: qrPaymentId,
-        amount: Math.round(amount * 100),
+        amount: Math.round(amount * 100), // Convert to cents for database storage
         currency: currency || 'usd',
         status: 'pending',
         customer_info: customerInfo,

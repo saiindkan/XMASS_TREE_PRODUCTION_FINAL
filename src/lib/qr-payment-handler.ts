@@ -115,13 +115,21 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
     let customerId = null
     if (qrPayment.customer_info?.user_id) {
       try {
-        const { data: customerData, error: customerError } = await supabase
-          .rpc('ensure_customer_exists', { user_uuid: qrPayment.customer_info.user_id })
+        console.log('🔍 Creating customer for user_id:', qrPayment.customer_info.user_id)
         
-        if (customerError) {
-          console.error('Customer creation error:', customerError)
-          // Try to create customer record directly
-          const { data: newCustomer, error: directCustomerError } = await supabase
+        // First, check if customer already exists
+        const { data: existingCustomer, error: checkError } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('user_id', qrPayment.customer_info.user_id)
+          .single()
+        
+        if (existingCustomer) {
+          customerId = existingCustomer.id
+          console.log('✅ Found existing customer:', customerId)
+        } else {
+          // Create new customer record
+          const { data: newCustomer, error: createError } = await supabase
             .from('customers')
             .insert({
               user_id: qrPayment.customer_info.user_id,
@@ -133,36 +141,89 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
             .select()
             .single()
           
-          if (directCustomerError) {
-            console.error('Direct customer creation error:', directCustomerError)
+          if (createError) {
+            console.error('❌ Customer creation error:', createError)
             // Continue without customer_id if there's an error
           } else {
             customerId = newCustomer.id
+            console.log('✅ Created new customer:', customerId)
           }
-        } else {
-          customerId = customerData
         }
       } catch (error) {
-        console.error('Customer creation failed:', error)
+        console.error('❌ Customer creation failed:', error)
         // Continue without customer_id if there's an error
       }
+    } else {
+      console.log('⚠️ No user_id provided, creating guest order')
     }
     
+    // Use the original amount that was passed (which already includes tax)
+    // The frontend calculates the total with tax and passes it to the QR payment
+    const items = qrPayment.customer_info?.items || []
+    const originalTotal = qrPayment.amount / 100 // Convert from cents to dollars
+    
+    // Calculate subtotal from items (without tax)
+    const subtotal = items.reduce((sum: number, item: any) => {
+      const price = item.product?.price || item.price || 0
+      const quantity = item.quantity || 1
+      return sum + (price * quantity)
+    }, 0)
+    
+    // Calculate tax amount (difference between total and subtotal)
+    const taxAmount = Math.round((originalTotal - subtotal) * 100) / 100
+    const shippingAmount = 0
+    const discountAmount = 0
+    const total = originalTotal // Use the original total that includes tax
+
+    console.log('💰 QR Payment Tax Calculation:', {
+      subtotal: subtotal,
+      taxAmount: taxAmount,
+      shippingAmount: shippingAmount,
+      discountAmount: discountAmount,
+      total: total,
+      originalAmountCents: qrPayment.amount,
+      originalAmountDollars: originalTotal,
+      note: 'Using original amount that already includes tax from frontend'
+    })
+
+    // Map payment method to user-friendly label
+    const getPaymentMethodLabel = (method: string) => {
+      switch (method) {
+        case 'test_payment':
+          return 'QR Payment'
+        case 'apple_pay':
+          return 'Apple Pay'
+        case 'google_pay':
+          return 'Google Pay'
+        case 'card':
+          return 'Card (QR)'
+        default:
+          return 'QR Payment'
+      }
+    }
+
+    const paymentMethodLabel = getPaymentMethodLabel(paymentMethod)
+
+    console.log('💳 Payment Method Mapping:', {
+      originalMethod: paymentMethod,
+      mappedLabel: paymentMethodLabel
+    })
+
     // Prepare order data with fallbacks for missing columns
     const orderData: any = {
       order_number: orderNumber,
       user_id: qrPayment.customer_info?.user_id || null, // Allow null for guest orders
       customer_id: customerId, // Use the customer ID from the customers table
       customer_info: qrPayment.customer_info || {},
-      items: qrPayment.customer_info?.items || [],
-      subtotal: qrPayment.amount / 100,
-      tax_amount: 0,
-      shipping_amount: 0,
-      discount_amount: 0,
-      total: qrPayment.amount / 100,
+      items: items,
+      subtotal: subtotal,
+      tax_amount: taxAmount,
+      shipping_amount: shippingAmount,
+      discount_amount: discountAmount,
+      total: total,
       currency: qrPayment.currency,
       status: 'paid',
-      payment_method: 'qr_payment',
+      payment_method: paymentMethodLabel, // Use user-friendly label
       payment_reference: qrPaymentId,
       notes: `QR Payment completed via ${paymentMethod}`
     }
@@ -171,13 +232,20 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
     console.log('🔍 Debug - Items being stored in order:', JSON.stringify(qrPayment.customer_info?.items, null, 2))
     console.log('🔍 Debug - Order data items field:', JSON.stringify(orderData.items, null, 2))
 
-    // Remove user_id and customer_id if they're null/undefined
-    if (!orderData.user_id) {
+    // Keep user_id and customer_id even if null (for guest orders)
+    // Only remove them if they're explicitly undefined
+    if (orderData.user_id === undefined) {
       delete orderData.user_id
     }
-    if (!orderData.customer_id) {
+    if (orderData.customer_id === undefined) {
       delete orderData.customer_id
     }
+    
+    console.log('🔍 Order data before creation:', {
+      user_id: orderData.user_id,
+      customer_id: orderData.customer_id,
+      order_number: orderData.order_number
+    })
 
     console.log('🔍 Debug - Attempting to create order with data:', JSON.stringify(orderData, null, 2))
     
@@ -204,7 +272,7 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
         .insert({
           order_id: order.id,
           qr_payment_id: qrPaymentId, // Use qr_payment_id instead of stripe_payment_intent_id
-          amount: qrPayment.amount,
+          amount: qrPayment.amount, // Amount is already in cents from database
           currency: qrPayment.currency,
           status: 'succeeded',
           payment_method_id: transactionId,
@@ -230,9 +298,9 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
           orderNumber: orderNumber,
           customerEmail: qrPayment.customer_info?.email || '',
           customerPhone: qrPayment.customer_info?.phone || '',
-          total: qrPayment.amount / 100,
+          total: total, // Use calculated total with tax (in dollars)
           currency: qrPayment.currency,
-          paymentMethod: 'QR Payment'
+          paymentMethod: paymentMethodLabel // Use the mapped payment method label
         })
       })
     } catch (notificationError) {
@@ -245,7 +313,7 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
       orderId: order.id,
       orderNumber: orderNumber,
       status: 'completed',
-      amount: qrPayment.amount / 100,
+      amount: total, // Use calculated total with tax (in dollars)
       currency: qrPayment.currency
     }
 

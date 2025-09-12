@@ -90,7 +90,7 @@ function OrderConfirmationContent() {
             id: qrPaymentId,
             status: "confirmed",
             timestamp: new Date().toISOString(),
-            total: qrData.qrPayment.amount / 100,
+            total: qrData.qrPayment.amount, // Amount is already in dollars
             items: qrData.qrPayment.customer_info.items || []
           });
         }

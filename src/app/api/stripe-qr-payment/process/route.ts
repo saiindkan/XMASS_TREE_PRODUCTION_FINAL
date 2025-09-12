@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         qrPaymentId: qrPaymentId,
         paymentMethod: 'test_payment',
         transactionId: paymentIntent.id,
-        amount: qrPayment.amount,
+        amount: qrPayment.amount, // Amount is already in dollars
         currency: qrPayment.currency,
         customerInfo: qrPayment.customer_info
       })
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       qrPaymentId: qrPaymentId,
-      amount: qrPayment.amount / 100,
+      amount: qrPayment.amount, // Amount is already in dollars
       currency: qrPayment.currency,
       merchant: 'Christmas Tree Shop',
       status: qrPayment.status,
