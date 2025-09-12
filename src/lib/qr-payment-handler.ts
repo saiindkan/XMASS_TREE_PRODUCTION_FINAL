@@ -163,7 +163,18 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
     // Use the original amount that was passed (which already includes tax)
     // The frontend calculates the total with tax and passes it to the QR payment
     const items = qrPayment.customer_info?.items || []
-    const originalTotal = qrPayment.amount / 100 // Convert from cents to dollars
+    
+    // Smart amount handling: use passed amount if provided, otherwise convert from database
+    let originalTotal: number
+    if (amount !== undefined && amount !== null) {
+      // Amount was passed from webhook/API call
+      originalTotal = amount
+      console.log('💰 Using passed amount:', originalTotal)
+    } else {
+      // Convert from database (stored in cents)
+      originalTotal = qrPayment.amount / 100
+      console.log('💰 Using database amount (converted from cents):', originalTotal)
+    }
     
     // Calculate subtotal from items (without tax)
     const subtotal = items.reduce((sum: number, item: any) => {
@@ -186,7 +197,8 @@ export async function processQRPayment(request: PaymentCompletionRequest) {
       total: total,
       originalAmountCents: qrPayment.amount,
       originalAmountDollars: originalTotal,
-      note: 'Using original amount that already includes tax from frontend'
+      amountSource: amount !== undefined ? 'passed_parameter' : 'database_converted',
+      note: 'Smart amount handling - uses passed amount or converts from database'
     })
 
     // Map payment method to user-friendly label

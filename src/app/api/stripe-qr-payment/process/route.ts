@@ -142,6 +142,54 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', qrPaymentId)
 
+    // If payment succeeded, create order
+    if (confirmedPayment.status === 'succeeded') {
+      console.log('✅ Payment succeeded, creating order...')
+      
+      try {
+        const { processQRPayment } = await import('@/lib/qr-payment-handler')
+        
+        const result = await processQRPayment({
+          qrPaymentId: qrPaymentId,
+          paymentMethod: paymentMethod || (typeof confirmedPayment.payment_method === 'string' ? confirmedPayment.payment_method : confirmedPayment.payment_method?.type || 'stripe'),
+          transactionId: confirmedPayment.id,
+          amount: qrPayment.amount / 100, // Convert from cents to dollars
+          currency: qrPayment.currency,
+          customerInfo: qrPayment.customer_info
+        })
+
+        if (result.success) {
+          console.log('✅ Order created successfully:', result.orderId)
+          return NextResponse.json({
+            success: true,
+            status: confirmedPayment.status,
+            paymentIntentId: confirmedPayment.id,
+            orderId: result.orderId,
+            orderNumber: result.orderNumber,
+            message: 'Payment completed and order created successfully'
+          })
+        } else {
+          console.error('❌ Failed to create order:', result.error)
+          return NextResponse.json({
+            success: true,
+            status: confirmedPayment.status,
+            paymentIntentId: confirmedPayment.id,
+            warning: 'Payment succeeded but order creation failed',
+            error: result.error
+          })
+        }
+      } catch (orderError) {
+        console.error('❌ Error creating order:', orderError)
+        return NextResponse.json({
+          success: true,
+          status: confirmedPayment.status,
+          paymentIntentId: confirmedPayment.id,
+          warning: 'Payment succeeded but order creation failed',
+          error: 'Order creation error'
+        })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       status: confirmedPayment.status,

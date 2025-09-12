@@ -96,6 +96,7 @@ function OrderConfirmationContent() {
             
             // Try to manually trigger order creation as a fallback
             try {
+              // Use the QR payment handler directly to create order
               const createOrderResponse = await fetch('/api/stripe-qr-payment/process', {
                 method: 'POST',
                 headers: {
@@ -120,14 +121,51 @@ function OrderConfirmationContent() {
                 });
               } else {
                 console.log('❌ Failed to create order via fallback:', createResult.error);
-                // Fallback: create order details from QR payment data
-                setOrderDetails({
-                  id: qrPaymentId,
-                  status: "confirmed",
-                  timestamp: new Date().toISOString(),
-                  total: qrData.qrPayment.amount / 100, // Convert from cents
-                  items: qrData.qrPayment.customer_info.items || []
-                });
+                
+                // Try alternative approach - create order directly via orders API
+                try {
+                  const directOrderResponse = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      qr_payment_id: qrPaymentId,
+                      customer_info: qrData.qrPayment.customer_info,
+                      items: qrData.qrPayment.customer_info.items || [],
+                      total: qrData.qrPayment.amount / 100,
+                      currency: qrData.qrPayment.currency,
+                      payment_method: 'qr_payment',
+                      payment_status: 'succeeded',
+                      payment_intent_id: qrData.qrPayment.transaction_id
+                    })
+                  });
+                  
+                  const directOrderResult = await directOrderResponse.json();
+                  
+                  if (directOrderResult.success && directOrderResult.order) {
+                    console.log('✅ Order created via direct API:', directOrderResult.order.id);
+                    setOrderDetails({
+                      id: directOrderResult.order.id,
+                      status: "confirmed",
+                      timestamp: new Date().toISOString(),
+                      total: qrData.qrPayment.amount / 100,
+                      items: qrData.qrPayment.customer_info.items || []
+                    });
+                  } else {
+                    throw new Error('Direct order creation failed');
+                  }
+                } catch (directError) {
+                  console.error('❌ Direct order creation also failed:', directError);
+                  // Final fallback: create order details from QR payment data
+                  setOrderDetails({
+                    id: qrPaymentId,
+                    status: "confirmed",
+                    timestamp: new Date().toISOString(),
+                    total: qrData.qrPayment.amount / 100, // Convert from cents
+                    items: qrData.qrPayment.customer_info.items || []
+                  });
+                }
               }
             } catch (fallbackError) {
               console.error('❌ Fallback order creation failed:', fallbackError);

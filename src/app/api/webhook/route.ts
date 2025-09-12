@@ -40,7 +40,85 @@ export async function POST(request: NextRequest) {
         console.log('💳 Payment succeeded for order:', orderId)
         console.log('💰 Payment amount:', paymentIntent.amount / 100)
 
-        if (orderId) {
+        // Check if this is a QR payment by looking for QR payment record
+        const { data: qrPayment, error: qrError } = await supabaseAdmin
+          .from('qr_payments')
+          .select('*')
+          .eq('transaction_id', paymentIntent.id)
+          .single()
+
+        if (qrPayment && !qrError) {
+          console.log('🔍 Found QR payment for this payment intent:', qrPayment.id)
+          
+          // Update QR payment status to completed
+          const { error: qrUpdateError } = await supabaseAdmin
+            .from('qr_payments')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              payment_method: typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.type || 'stripe'
+            })
+            .eq('id', qrPayment.id)
+
+          if (qrUpdateError) {
+            console.error('Error updating QR payment:', qrUpdateError)
+          } else {
+            console.log(`✅ QR payment ${qrPayment.id} marked as completed`)
+          }
+
+          // Check if order already exists for this QR payment
+          const { data: existingOrder, error: orderCheckError } = await supabaseAdmin
+            .from('orders')
+            .select('*')
+            .eq('payment_reference', qrPayment.id)
+            .single()
+
+          if (existingOrder && !orderCheckError) {
+            console.log('✅ Order already exists for QR payment:', existingOrder.id)
+            
+            // Update existing order status
+            const { error: orderError } = await supabaseAdmin
+              .from('orders')
+              .update({
+                status: 'paid',
+                payment_intent_id: paymentIntent.id,
+                payment_status: 'succeeded',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingOrder.id)
+
+            if (orderError) {
+              console.error('Error updating existing order:', orderError)
+            } else {
+              console.log(`✅ Order ${existingOrder.id} marked as paid`)
+            }
+          } else {
+            console.log('⚠️ No existing order found for QR payment, creating new order...')
+            
+            // Create order using QR payment handler
+            try {
+              const { processQRPayment } = await import('@/lib/qr-payment-handler')
+              
+              const result = await processQRPayment({
+                qrPaymentId: qrPayment.id,
+                paymentMethod: typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.type || 'stripe',
+                transactionId: paymentIntent.id,
+                amount: qrPayment.amount / 100, // Convert from cents to dollars
+                currency: qrPayment.currency,
+                customerInfo: qrPayment.customer_info
+              })
+
+              if (result.success) {
+                console.log('✅ Order created successfully for QR payment:', result.orderId)
+              } else {
+                console.error('❌ Failed to create order for QR payment:', result.error)
+              }
+            } catch (importError) {
+              console.error('❌ Error importing QR payment handler:', importError)
+            }
+          }
+        } else if (orderId) {
+          // Handle regular order payments (existing logic)
           // Update order status to paid
           const { error: orderError } = await supabaseAdmin
             .from('orders')

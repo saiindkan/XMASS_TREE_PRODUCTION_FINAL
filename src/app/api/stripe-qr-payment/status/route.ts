@@ -83,12 +83,16 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
           success: true,
+          qrPayment: qrPayment,
           status: newStatus,
           stripeStatus: paymentIntent.status,
           amount: qrPayment.amount / 100, // Convert from cents to dollars
           currency: qrPayment.currency,
           paymentMethod: typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.type,
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
+          customerInfo: qrPayment.customer_info,
+          expiresAt: qrPayment.expires_at,
+          completedAt: qrPayment.completed_at
         })
 
       } catch (stripeError) {
@@ -96,10 +100,14 @@ export async function GET(request: NextRequest) {
         // Return current status if Stripe call fails
         return NextResponse.json({
           success: true,
+          qrPayment: qrPayment,
           status: qrPayment.status,
           amount: qrPayment.amount / 100, // Convert from cents to dollars
           currency: qrPayment.currency,
-          lastUpdated: qrPayment.updated_at
+          lastUpdated: qrPayment.updated_at,
+          customerInfo: qrPayment.customer_info,
+          expiresAt: qrPayment.expires_at,
+          completedAt: qrPayment.completed_at
         })
       }
     }
@@ -107,10 +115,14 @@ export async function GET(request: NextRequest) {
     // Return current status if no Stripe transaction ID
     return NextResponse.json({
       success: true,
+      qrPayment: qrPayment,
       status: qrPayment.status,
       amount: qrPayment.amount / 100, // Convert from cents to dollars
       currency: qrPayment.currency,
-      lastUpdated: qrPayment.updated_at
+      lastUpdated: qrPayment.updated_at,
+      customerInfo: qrPayment.customer_info,
+      expiresAt: qrPayment.expires_at,
+      completedAt: qrPayment.completed_at
     })
 
   } catch (error) {
