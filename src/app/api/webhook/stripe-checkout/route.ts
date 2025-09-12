@@ -11,7 +11,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+const webhookSecret = process.env.STRIPE_QR_WEBHOOK_SECRET!
 
 export const dynamic = 'force-dynamic'
 
