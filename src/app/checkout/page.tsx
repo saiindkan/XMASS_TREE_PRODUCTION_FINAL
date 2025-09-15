@@ -4,12 +4,11 @@ import { useState, useEffect } from 'react'
 import { useCart } from "@/context/CartContext";
 import { useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CreditCard, Shield, Truck, Lock, CheckCircle, AlertCircle, User, Smartphone } from 'lucide-react'
+import { ArrowLeft, CreditCard, Shield, Truck, Lock, CheckCircle, AlertCircle, User } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import MobilePaymentOptions from '@/components/MobilePaymentOptions'
 
 // Initialize Stripe
 const stripePromise = loadStripe(
@@ -342,39 +341,13 @@ const PaymentMethodStep = ({
   onComplete: () => void
   cart: any[]
 }) => {
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'mobile' | 'card'>('mobile')
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card'>('card')
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const { data: session } = useSession()
   const stripe = useStripe()
   const elements = useElements()
 
-  // Handle mobile payment success
-  const handleMobilePaymentSuccess = async (paymentMethod: string, paymentData: any) => {
-    try {
-      if (paymentMethod === 'card' && paymentData.redirect) {
-        // Handle card payment through existing flow
-        setSelectedPaymentMethod('card')
-        return
-      }
-
-      // For other mobile payments, redirect to success page
-      const orderId = paymentData.orderId || paymentData.paymentIntentId
-      if (orderId) {
-        window.location.href = `/order-confirmation?payment_intent=${orderId}`
-      } else {
-        onComplete()
-      }
-    } catch (error) {
-      console.error('Mobile payment success handling error:', error)
-      setPaymentError('Payment completed but there was an issue processing your order.')
-    }
-  }
-
-  // Handle mobile payment error
-  const handleMobilePaymentError = (error: string) => {
-    setPaymentError(error)
-  }
 
 
   const handlePayment = async () => {
@@ -519,80 +492,32 @@ const PaymentMethodStep = ({
 
       {/* Payment Method Selection */}
       <div className="bg-white rounded-2xl shadow-lg p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card Payment */}
-          <div 
-            className={`border-2 rounded-xl p-6 cursor-pointer transition-all ${
-              selectedPaymentMethod === 'card' 
-                ? 'border-emerald-500 bg-emerald-50' 
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-            onClick={() => setSelectedPaymentMethod('card')}
-          >
+        {/* Card Payment Only */}
+        <div className="max-w-md mx-auto">
+          <div className="border-2 border-emerald-500 bg-emerald-50 rounded-xl p-6">
             <div className="flex items-center mb-4">
               <CreditCard className="h-6 w-6 text-emerald-600 mr-3" />
               <h3 className="text-lg font-semibold text-gray-900">Credit/Debit Card</h3>
             </div>
             <p className="text-gray-600 mb-4">Pay securely with your credit or debit card</p>
             
-            {selectedPaymentMethod === 'card' && (
-              <div className="space-y-4">
-                <div className="border border-gray-300 rounded-lg p-4">
-                  <CardElement
-                    options={{
-                      style: {
-                        base: {
-                          fontSize: '16px',
-                          color: '#424770',
-                          '::placeholder': {
-                            color: '#aab7c4',
-                          },
+            <div className="space-y-4">
+              <div className="border border-gray-300 rounded-lg p-4">
+                <CardElement
+                  options={{
+                    style: {
+                      base: {
+                        fontSize: '16px',
+                        color: '#424770',
+                        '::placeholder': {
+                          color: '#aab7c4',
                         },
                       },
-                    }}
-                  />
-                </div>
+                    },
+                  }}
+                />
               </div>
-            )}
-          </div>
-
-          {/* Mobile Payment */}
-          <div 
-            className={`border-2 rounded-xl p-6 cursor-pointer transition-all ${
-              selectedPaymentMethod === 'mobile' 
-                ? 'border-emerald-500 bg-emerald-50' 
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-            onClick={() => setSelectedPaymentMethod('mobile')}
-          >
-            <div className="flex items-center mb-4">
-              <Smartphone className="h-6 w-6 text-emerald-600 mr-3" />
-              <h3 className="text-lg font-semibold text-gray-900">Mobile Payment</h3>
             </div>
-            <p className="text-gray-600 mb-4">Pay with Apple Pay, Google Pay, Chime, or Cash App</p>
-            
-            {selectedPaymentMethod === 'mobile' && (
-              <MobilePaymentOptions
-                total={formData.total}
-                customerInfo={{
-                  name: formData.cardholderName,
-                  email: formData.email,
-                  phone: formData.phone,
-                  address: {
-                    line1: formData.address,
-                    city: formData.city,
-                    state: formData.state,
-                    postal_code: formData.zipCode,
-                    country: 'US'
-                  },
-                  items: cart
-                }}
-                onPaymentSuccess={handleMobilePaymentSuccess}
-                onPaymentError={handleMobilePaymentError}
-                isProcessing={isProcessing}
-                setIsProcessing={setIsProcessing}
-              />
-            )}
           </div>
         </div>
 
