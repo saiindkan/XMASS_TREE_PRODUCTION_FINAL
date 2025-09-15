@@ -646,6 +646,17 @@ const CheckoutForm = () => {
     }))
   }, [cart, getCartTotal])
 
+  // Populate form with session data when user is logged in
+  useEffect(() => {
+    if (session?.user) {
+      setFormData(prev => ({
+        ...prev,
+        cardholderName: session.user.name || '',
+        email: session.user.email || ''
+      }))
+    }
+  }, [session])
+
   // Redirect if cart is empty (but not if we're on success step)
   if (cart.length === 0 && currentStep !== 'success') {
     return (
