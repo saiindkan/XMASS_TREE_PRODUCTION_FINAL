@@ -69,40 +69,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 })
     }
 
-    // Fetch order details - try with customer join first, fallback to order only
-    let order, orderError
-    
-    // Try to fetch with customer join
-    const { data: orderWithCustomer, error: customerJoinError } = await supabaseAdmin
+    // Fetch order details directly (no need for customer join since order has all customer data)
+    const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select(`
-        *,
-        customers(
-          first_name,
-          last_name,
-          email,
-          phone,
-          company
-        )
-      `)
+      .select('*')
       .eq('id', orderId)
       .single()
-    
-    if (customerJoinError) {
-      console.log('Customer join failed, fetching order without customer data:', customerJoinError.message)
-      // Fallback: fetch order without customer join
-      const { data: orderOnly, error: orderOnlyError } = await supabaseAdmin
-        .from('orders')
-        .select('*')
-        .eq('id', orderId)
-        .single()
-      
-      order = orderOnly
-      orderError = orderOnlyError
-    } else {
-      order = orderWithCustomer
-      orderError = null
-    }
 
     if (orderError || !order) {
       console.error('Error fetching order:', orderError)
@@ -111,20 +83,16 @@ export async function POST(request: NextRequest) {
 
     console.log('📧 Sending email notification for order:', orderId)
     console.log('📧 Order customer_email:', order.customer_email)
-    console.log('📧 Customers table email:', order.customers?.email)
-    console.log('📧 Customer info email:', order.customer_info?.email)
+    console.log('📧 Order customer_name:', order.customer_name)
+    console.log('📧 Order customer_phone:', order.customer_phone)
 
     // Transform order data for email template
-    // Priority: Use order's customer_email first (from payment), then fallback to customers table
+    // Use order's customer data directly (no need for customers table join)
     const emailOrderData = {
       ...order,
-      customer_name: order.customer_name || 
-        (order.customers ? 
-          `${order.customers.first_name || ''} ${order.customers.last_name || ''}`.trim() || 
-          (order.customer_info?.name || 'Customer') : 
-          (order.customer_info?.name || 'Customer')),
-      customer_email: order.customer_email || order.customers?.email || order.customer_info?.email || 'customer@example.com',
-      customer_phone: order.customer_phone || order.customers?.phone || order.customer_info?.phone || '',
+      customer_name: order.customer_name || order.customer_info?.name || 'Customer',
+      customer_email: order.customer_email || order.customer_info?.email || 'customer@example.com',
+      customer_phone: order.customer_phone || order.customer_info?.phone || '',
       billing_address: order.billing_address ? {
         street: order.billing_address.street || order.billing_address.address_line_1 || 'Address not available',
         city: order.billing_address.city || 'City not available',
