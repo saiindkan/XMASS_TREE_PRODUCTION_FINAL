@@ -39,7 +39,10 @@ export default function MobilePaymentOptions({
       }
     }
     
-    // Check for Google Pay with retry mechanism
+    // Check for Google Pay with retry mechanism and timeout
+    let retryCount = 0
+    const maxRetries = 5
+    
     const checkGooglePay = () => {
       if (typeof window !== 'undefined' && (window as any).google?.payments?.api) {
         try {
@@ -68,22 +71,23 @@ export default function MobilePaymentOptions({
         } catch (error) {
           console.log('Google Pay not available:', error)
         }
-      } else {
+      } else if (retryCount < maxRetries) {
         // Retry after a short delay if Google Pay API isn't loaded yet
+        retryCount++
         setTimeout(checkGooglePay, 1000)
+      } else {
+        console.log('Google Pay API failed to load after maximum retries')
       }
     }
     
     // Start checking for Google Pay
     checkGooglePay()
     
-    // Always show Apple Pay and Google Pay for better user experience
-    // Users will get proper error messages if the methods aren't actually available
-    if (!methods.includes('apple_pay')) {
-      methods.push('apple_pay')
-    }
-    if (!methods.includes('google_pay')) {
-      methods.push('google_pay')
+    // Only show methods that are actually available
+    // Don't force show methods that aren't supported
+    if (methods.length === 0) {
+      // If no mobile payment methods are available, show a fallback message
+      console.log('No mobile payment methods available')
     }
     
     setAvailableMethods(methods)
@@ -292,6 +296,29 @@ export default function MobilePaymentOptions({
         </div>
         <div className="flex justify-center">
           <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+    )
+  }
+
+  // If no mobile payment methods are available, show fallback
+  if (availableMethods.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Mobile Payment Options</h3>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center justify-center space-x-2 text-yellow-800">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium">Mobile payments not available</span>
+            </div>
+            <p className="text-sm text-yellow-700 mt-2 text-center">
+              Apple Pay and Google Pay are not supported on this device or browser. 
+              Please use the credit card payment option below.
+            </p>
+          </div>
         </div>
       </div>
     )
