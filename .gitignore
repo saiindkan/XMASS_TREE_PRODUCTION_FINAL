@@ -147,3 +147,4 @@ test-smtp-config.js
 # Backup files
 *.bak
 *.backup
+.env.vercel

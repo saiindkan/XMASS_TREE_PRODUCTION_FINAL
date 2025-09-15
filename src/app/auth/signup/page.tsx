@@ -182,7 +182,7 @@ function SignUpContent() {
             <div className="space-y-4">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-white mb-2">
-                  Full Name
+                  Full Name <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="name"
@@ -198,7 +198,7 @@ function SignUpContent() {
               
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
-                  Email Address
+                  Email Address <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="email"
@@ -215,7 +215,7 @@ function SignUpContent() {
               
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
-                  Password
+                  Password <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="password"
@@ -239,7 +239,7 @@ function SignUpContent() {
               
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-white mb-2">
-                  Confirm Password
+                  Confirm Password <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="confirmPassword"

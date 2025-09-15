@@ -14,7 +14,9 @@ import {
   DollarSign,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Apple,
+  Smartphone
 } from "lucide-react";
 
 interface OrderItem {
@@ -75,6 +77,48 @@ interface Order {
   payment_method?: string;
 }
 
+// Helper function to get payment method icon and styling
+const getPaymentMethodInfo = (paymentMethod: string) => {
+  switch (paymentMethod?.toLowerCase()) {
+    case 'apple pay':
+      return {
+        icon: Apple,
+        label: 'Apple Pay',
+        color: 'bg-gray-900 text-white',
+        iconColor: 'text-white'
+      };
+    case 'google pay':
+      return {
+        icon: Smartphone,
+        label: 'Google Pay',
+        color: 'bg-blue-600 text-white',
+        iconColor: 'text-white'
+      };
+    case 'card payment':
+    case 'stripe':
+      return {
+        icon: CreditCard,
+        label: 'Card Payment',
+        color: 'bg-blue-500 text-white',
+        iconColor: 'text-white'
+      };
+    case 'test payment':
+      return {
+        icon: CreditCard,
+        label: 'Test Payment',
+        color: 'bg-yellow-500 text-black',
+        iconColor: 'text-black'
+      };
+    default:
+      return {
+        icon: CreditCard,
+        label: paymentMethod || 'Unknown',
+        color: 'bg-gray-500 text-white',
+        iconColor: 'text-white'
+      };
+  }
+};
+
 export default function OrdersPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -82,6 +126,21 @@ export default function OrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
+
+  // Get unique payment methods for filter options
+  const getUniquePaymentMethods = () => {
+    const methods = orders.map(order => order.payment_method).filter(Boolean);
+    return Array.from(new Set(methods));
+  };
+
+  // Filter orders based on payment method
+  const getFilteredOrders = () => {
+    if (paymentMethodFilter === 'all') {
+      return orders;
+    }
+    return orders.filter(order => order.payment_method === paymentMethodFilter);
+  };
 
   useEffect(() => {
     if (status === "loading") return;
@@ -263,13 +322,33 @@ export default function OrdersPage() {
             <div className="lg:col-span-2">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Order History ({orders.length})
-                  </h2>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Order History ({getFilteredOrders().length})
+                    </h2>
+                    <div className="flex items-center space-x-3">
+                      <label htmlFor="payment-filter" className="text-sm font-medium text-gray-700">
+                        Payment Method:
+                      </label>
+                      <select
+                        id="payment-filter"
+                        value={paymentMethodFilter}
+                        onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                        className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      >
+                        <option value="all">All Methods</option>
+                        {getUniquePaymentMethods().map((method) => (
+                          <option key={method} value={method}>
+                            {getPaymentMethodInfo(method).label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="divide-y divide-gray-200">
-                  {orders.map((order) => (
+                  {getFilteredOrders().map((order) => (
                     <div 
                       key={order.id} 
                       className={`p-6 cursor-pointer transition-colors duration-150 ${
@@ -305,6 +384,17 @@ export default function OrdersPage() {
                                 ⏳ Payment Pending
                               </span>
                             )}
+                            {/* Payment Method Badge */}
+                            {order.payment_method && (() => {
+                              const paymentInfo = getPaymentMethodInfo(order.payment_method);
+                              const IconComponent = paymentInfo.icon;
+                              return (
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full flex items-center ${paymentInfo.color}`}>
+                                  <IconComponent className={`h-3 w-3 mr-1 ${paymentInfo.iconColor}`} />
+                                  {paymentInfo.label}
+                                </span>
+                              );
+                            })()}
                           </div>
                           
                           <div className="text-sm text-gray-600 mb-2">
@@ -453,12 +543,21 @@ export default function OrdersPage() {
                             </span>
                           </div>
                         </div>
-                        {selectedOrder.payment_method && (
-                          <div>
-                            <span className="text-sm font-medium text-gray-500">Payment Method:</span>
-                            <p className="text-sm text-gray-900">{selectedOrder.payment_method}</p>
-                          </div>
-                        )}
+                        {selectedOrder.payment_method && (() => {
+                          const paymentInfo = getPaymentMethodInfo(selectedOrder.payment_method);
+                          const IconComponent = paymentInfo.icon;
+                          return (
+                            <div>
+                              <span className="text-sm font-medium text-gray-500">Payment Method:</span>
+                              <div className="flex items-center mt-1">
+                                <span className={`px-3 py-1 text-sm font-semibold rounded-full flex items-center ${paymentInfo.color}`}>
+                                  <IconComponent className={`h-4 w-4 mr-2 ${paymentInfo.iconColor}`} />
+                                  {paymentInfo.label}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {selectedOrder.payment_intent_id && (
                           <div>
                             <span className="text-sm font-medium text-gray-500">Payment ID:</span>

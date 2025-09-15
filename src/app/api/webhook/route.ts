@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { createServerSupabaseAdminClient } from '@/lib/supabase'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
+  apiVersion: '2025-08-27.basil',
 })
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
         console.log('💰 Payment amount:', paymentIntent.amount / 100)
 
         if (orderId) {
+          // Handle regular order payments (existing logic)
           // Update order status to paid
           const { error: orderError } = await supabaseAdmin
             .from('orders')

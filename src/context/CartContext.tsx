@@ -20,6 +20,7 @@ interface CartContextType {
   getCartTotal: () => number;
   getCartItemCount: () => number;
   restoreCart: () => void;
+  clearCartFromStorage: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -35,8 +36,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const savedCart = localStorage.getItem(CART_STORAGE_KEY);
+      console.log('🔍 Loading cart from localStorage:', savedCart);
       if (savedCart) {
-        setCart(JSON.parse(savedCart));
+        const parsedCart = JSON.parse(savedCart);
+        console.log('🔍 Parsed cart from localStorage:', parsedCart);
+        setCart(parsedCart);
+      } else {
+        console.log('🔍 No cart found in localStorage, starting with empty cart');
       }
     } catch (error) {
       console.error('Failed to load cart from storage', error);
@@ -220,6 +226,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const clearCartFromStorage = useCallback(() => {
+    try {
+      localStorage.removeItem(CART_STORAGE_KEY);
+      setCart([]);
+      console.log('Cart cleared from localStorage and state');
+    } catch (error) {
+      console.error('Failed to clear cart from storage', error);
+    }
+  }, []);
+
   return (
     <CartContext.Provider
       value={{
@@ -232,6 +248,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         getCartTotal,
         getCartItemCount,
         restoreCart,
+        clearCartFromStorage,
       }}
     >
       {children}

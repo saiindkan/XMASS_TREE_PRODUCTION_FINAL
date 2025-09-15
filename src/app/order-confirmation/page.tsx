@@ -59,6 +59,7 @@ function OrderConfirmationContent() {
     }
   };
 
+
   // Countdown timer and redirect logic
   useEffect(() => {
     if (isLoading) return;
@@ -67,8 +68,8 @@ function OrderConfirmationContent() {
       setCountdown((prev) => {
         if (prev <= 1) {
           setIsRedirecting(true);
-          // Redirect to home page
-          window.location.href = '/';
+          // Redirect to orders page instead of home page
+          window.location.href = '/orders';
           return 0;
         }
         return prev - 1;
@@ -116,7 +117,7 @@ function OrderConfirmationContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
               <span className="text-sm font-medium">
-                Redirecting to home page in <span className="font-bold text-yellow-900">{countdown}</span> seconds
+                Redirecting to orders page in <span className="font-bold text-yellow-900">{countdown}</span> seconds
               </span>
             </div>
             
@@ -133,14 +134,14 @@ function OrderConfirmationContent() {
               <button
                 onClick={() => {
                   setIsRedirecting(true);
-                  window.location.href = '/';
+                  window.location.href = '/orders';
                 }}
                 className="inline-flex items-center px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-md hover:bg-yellow-700 transition-colors duration-200"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
                 </svg>
-                Go to Home Page Now
+                Go to My Orders Now
               </button>
             </div>
             

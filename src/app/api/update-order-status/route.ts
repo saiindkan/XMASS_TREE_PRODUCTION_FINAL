@@ -11,6 +11,13 @@ export async function POST(request: NextRequest) {
     }
 
     const { orderId, status, paymentIntentId, paymentStatus } = await request.json()
+    
+    console.log('📝 Update order status request:', {
+      orderId,
+      status,
+      paymentIntentId,
+      paymentStatus
+    })
 
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 })
@@ -30,9 +37,16 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (orderError) {
-      console.error('Error updating order:', orderError)
+      console.error('❌ Error updating order:', orderError)
       return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
     }
+    
+    console.log('✅ Order updated successfully:', {
+      orderId: order.id,
+      status: order.status,
+      paymentStatus: order.payment_status,
+      paymentIntentId: order.payment_intent_id
+    })
 
     // Create payment record if payment was successful
     if (status === 'paid' && paymentStatus === 'succeeded') {
@@ -59,6 +73,25 @@ export async function POST(request: NextRequest) {
         console.error('Error creating payment record:', paymentError)
       } else {
         console.log(`✅ Payment record created for order ${orderId}`)
+      }
+
+      // Send order confirmation email
+      try {
+        console.log('📧 Sending order confirmation email...')
+        const emailResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL}/api/send-order-notification`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: orderId })
+        })
+        
+        if (emailResponse.ok) {
+          const emailResult = await emailResponse.json()
+          console.log('✅ Order confirmation email sent:', emailResult.message)
+        } else {
+          console.error('❌ Failed to send order confirmation email')
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending order confirmation email:', emailError)
       }
     }
 

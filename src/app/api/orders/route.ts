@@ -227,6 +227,48 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const paymentIntentId = searchParams.get('id');
+    
+    // If querying by payment intent ID, we don't need authentication
+    if (paymentIntentId) {
+      console.log('🔍 Querying order by payment intent ID:', paymentIntentId);
+      
+      const supabaseAdmin = createServerSupabaseAdminClient();
+      
+      // Find order by payment intent ID
+      const { data: order, error: orderError } = await supabaseAdmin
+        .from('orders')
+        .select(`
+          *,
+          customers(
+            first_name,
+            last_name,
+            email,
+            phone,
+            company
+          )
+        `)
+        .eq('payment_intent_id', paymentIntentId)
+        .single();
+      
+      if (orderError || !order) {
+        console.error('❌ Order not found for payment intent ID:', paymentIntentId, orderError);
+        return NextResponse.json(
+          { error: 'Order not found' },
+          { status: 404 }
+        );
+      }
+      
+      console.log('✅ Found order for payment intent:', order.id);
+      
+      return NextResponse.json({
+        success: true,
+        order: order
+      });
+    }
+    
+    // Regular authenticated user order fetching
     const session = await getSession();
     if (!session?.user?.email) {
       return NextResponse.json(
@@ -252,12 +294,15 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Get orders with customer information (removed payment_transactions join due to missing relationship)
-    const { data: orders, error: ordersError } = await supabaseAdmin
+    // Get orders - try with customer join first, fallback to order only
+    let orders, ordersError
+    
+    // Try to fetch with customer join
+    const { data: ordersWithCustomer, error: customerJoinError } = await supabaseAdmin
       .from('orders')
       .select(`
         *,
-        customers!inner(
+        customers(
           first_name,
           last_name,
           email,
@@ -267,6 +312,22 @@ export async function GET(request: NextRequest) {
       `)
       .eq('user_id', dbUser.id)
       .order('created_at', { ascending: false });
+    
+    if (customerJoinError) {
+      console.log('Customer join failed, fetching orders without customer data:', customerJoinError.message);
+      // Fallback: fetch orders without customer join
+      const { data: ordersOnly, error: ordersOnlyError } = await supabaseAdmin
+        .from('orders')
+        .select('*')
+        .eq('user_id', dbUser.id)
+        .order('created_at', { ascending: false });
+      
+      orders = ordersOnly
+      ordersError = ordersOnlyError
+    } else {
+      orders = ordersWithCustomer
+      ordersError = null
+    }
 
     if (ordersError) {
       console.error('❌ Error fetching orders:', ordersError);
@@ -277,7 +338,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform the data for frontend consumption
-    const transformedOrders = orders.map(order => {
+    const transformedOrders = await Promise.all(orders.map(async order => {
       // Determine payment status based on order status and available data
       let paymentStatus = 'pending';
       let paymentIntentId = null;
@@ -304,8 +365,9 @@ export async function GET(request: NextRequest) {
       // Determine payment method if available
       if (order.payment_method) {
         paymentMethod = order.payment_method;
+        
       } else if (order.payment_intent_id) {
-        paymentMethod = 'stripe'; // Default to Stripe if we have a payment intent
+        paymentMethod = 'Card Payment'; // More descriptive for card payments
       }
       
       return {
@@ -333,11 +395,11 @@ export async function GET(request: NextRequest) {
           product_image: item.image
         })) : [],
         customer: {
-          firstName: order.customers.first_name,
-          lastName: order.customers.last_name,
-          email: order.customers.email,
-          phone: order.customers.phone,
-          company: order.customers.company
+          firstName: order.customers?.first_name || order.customer_info?.name?.split(' ')[0] || 'Customer',
+          lastName: order.customers?.last_name || order.customer_info?.name?.split(' ')[1] || 'User',
+          email: order.customers?.email || order.customer_info?.email || 'customer@example.com',
+          phone: order.customers?.phone || order.customer_info?.phone || '',
+          company: order.customers?.company || order.customer_info?.company || ''
         },
         billing_address: null, // Will be added later when we fix the relationship
         shipping_address: null, // Will be added later when we fix the relationship
@@ -347,7 +409,7 @@ export async function GET(request: NextRequest) {
         payment_intent_id: paymentIntentId,
         payment_method: paymentMethod
       };
-    });
+    }));
 
     return NextResponse.json({ orders: transformedOrders });
 

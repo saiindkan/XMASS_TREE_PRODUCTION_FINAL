@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useCart } from "@/context/CartContext";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CreditCard, Shield, Truck, Lock, CheckCircle, AlertCircle, User } from 'lucide-react'
+import { ArrowLeft, CreditCard, Shield, Truck, Lock, CheckCircle, AlertCircle, User, Smartphone } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
+import MobilePaymentOptions from '@/components/MobilePaymentOptions'
 
 // Initialize Stripe
 const stripePromise = loadStripe(
@@ -50,10 +51,9 @@ const validateCardNumber = (cardNumber: string): { isValid: boolean; type: strin
     return 'unknown'
   }
   
-  const isValid = cleaned.length >= 13 && cleaned.length <= 19 && luhnCheck(cleaned)
   const type = getCardType(cleaned)
   
-  return { isValid, type }
+  return { isValid: luhnCheck(cleaned) && cleaned.length >= 13 && cleaned.length <= 19, type }
 }
 
 const validateCVV = (cvv: string, cardType: string): boolean => {
@@ -64,15 +64,13 @@ const validateCVV = (cvv: string, cardType: string): boolean => {
   return /^\d{3}$/.test(cleaned)
 }
 
-const validateExpiry = (expiry: string): boolean => {
-  const [month, year] = expiry.split('/')
-  if (!month || !year) return false
-  
+const validateExpiryDate = (expiryDate: string): boolean => {
+  const [month, year] = expiryDate.split('/')
   const monthNum = parseInt(month)
   const yearNum = parseInt('20' + year)
   const currentDate = new Date()
-  const currentYear = currentDate.getFullYear()
   const currentMonth = currentDate.getMonth() + 1
+  const currentYear = currentDate.getFullYear()
   
   if (monthNum < 1 || monthNum > 12) return false
   if (yearNum < currentYear) return false
@@ -87,493 +85,644 @@ const formatCardNumber = (value: string): string => {
   return groups.join(' ')
 }
 
-// Payment Form Component
-const PaymentForm = () => {
+// Step 1: Customer Information Component
+const CustomerInfoStep = ({ 
+  formData, 
+  setFormData, 
+  errors, 
+  setErrors, 
+  onNext 
+}: {
+  formData: any
+  setFormData: (data: any) => void
+  errors: any
+  setErrors: (errors: any) => void
+  onNext: () => void
+}) => {
+  const validateForm = () => {
+    const newErrors: any = {}
+    
+    // Required field validation
+    if (!formData.cardholderName.trim()) {
+      newErrors.cardholderName = 'Cardholder name is required'
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email address is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required'
+    } else if (!/^\+?[\d\s\-\(\)]+$/.test(formData.phone)) {
+      newErrors.phone = 'Please enter a valid phone number'
+    }
+    if (!formData.address.trim()) {
+      newErrors.address = 'Street address is required'
+    }
+    if (!formData.city.trim()) {
+      newErrors.city = 'City is required'
+    }
+    if (!formData.state.trim()) {
+      newErrors.state = 'State is required'
+    }
+    if (!formData.zipCode.trim()) {
+      newErrors.zipCode = 'ZIP code is required'
+    } else if (!/^\d{5}(-\d{4})?$/.test(formData.zipCode)) {
+      newErrors.zipCode = 'Please enter a valid ZIP code'
+    }
+    
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleNext = () => {
+    if (validateForm()) {
+      onNext()
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Customer Information</h1>
+        <p className="text-gray-600">Please provide your contact and billing details</p>
+      </div>
+
+      {/* Customer Information Form */}
+      <div className="bg-white rounded-2xl shadow-lg p-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Personal Information */}
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <User className="h-5 w-5 mr-2 text-emerald-600" />
+              Personal Information
+            </h3>
+            
+            {/* Cardholder Name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.cardholderName}
+                onChange={(e) => setFormData({ ...formData, cardholderName: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                placeholder="Enter your full name"
+              />
+              {errors.cardholderName && (
+                <p className="text-red-500 text-sm mt-1 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.cardholderName}
+                </p>
+              )}
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                placeholder="Enter your email address"
+              />
+              {errors.email && (
+                <p className="text-red-500 text-sm mt-1 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.email}
+                </p>
+              )}
+            </div>
+
+            {/* Phone */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                placeholder="Enter your phone number"
+              />
+              {errors.phone && (
+                <p className="text-red-500 text-sm mt-1 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.phone}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Billing Address */}
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <Truck className="h-5 w-5 mr-2 text-emerald-600" />
+              Billing Address
+            </h3>
+            
+            {/* Street Address */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Street Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                placeholder="Enter your street address"
+              />
+              {errors.address && (
+                <p className="text-red-500 text-sm mt-1 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.address}
+                </p>
+              )}
+            </div>
+
+            {/* City */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                City <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                placeholder="Enter your city"
+              />
+              {errors.city && (
+                <p className="text-red-500 text-sm mt-1 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {errors.city}
+                </p>
+              )}
+            </div>
+
+            {/* State and ZIP */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                State <span className="text-red-500">*</span>
+              </label>
+                <input
+                  type="text"
+                  value={formData.state}
+                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                  placeholder="State"
+                />
+                {errors.state && (
+                  <p className="text-red-500 text-sm mt-1 flex items-center">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {errors.state}
+                  </p>
+                )}
+              </div>
+              <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ZIP Code <span className="text-red-500">*</span>
+              </label>
+                <input
+                  type="text"
+                  value={formData.zipCode}
+                  onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                  placeholder="ZIP"
+                />
+                {errors.zipCode && (
+                  <p className="text-red-500 text-sm mt-1 flex items-center">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {errors.zipCode}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Continue Button */}
+        <div className="mt-8 flex justify-end">
+          <button
+            onClick={handleNext}
+            className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all duration-300 flex items-center"
+          >
+            Continue to Payment
+            <ArrowLeft className="h-5 w-5 ml-2 rotate-180" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Step 2: Payment Method Component
+const PaymentMethodStep = ({ 
+  formData, 
+  setFormData, 
+  errors, 
+  setErrors, 
+  onBack, 
+  onComplete,
+  cart
+}: {
+  formData: any
+  setFormData: (data: any) => void
+  errors: any
+  setErrors: (errors: any) => void
+  onBack: () => void
+  onComplete: () => void
+  cart: any[]
+}) => {
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'mobile' | 'card'>('mobile')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
+  const { data: session } = useSession()
+  const stripe = useStripe()
+  const elements = useElements()
+
+  // Handle mobile payment success
+  const handleMobilePaymentSuccess = async (paymentMethod: string, paymentData: any) => {
+    try {
+      if (paymentMethod === 'card' && paymentData.redirect) {
+        // Handle card payment through existing flow
+        setSelectedPaymentMethod('card')
+        return
+      }
+
+      // For other mobile payments, redirect to success page
+      const orderId = paymentData.orderId || paymentData.paymentIntentId
+      if (orderId) {
+        window.location.href = `/order-confirmation?payment_intent=${orderId}`
+      } else {
+        onComplete()
+      }
+    } catch (error) {
+      console.error('Mobile payment success handling error:', error)
+      setPaymentError('Payment completed but there was an issue processing your order.')
+    }
+  }
+
+  // Handle mobile payment error
+  const handleMobilePaymentError = (error: string) => {
+    setPaymentError(error)
+  }
+
+
+  const handlePayment = async () => {
+    setIsProcessing(true)
+    setPaymentError('')
+    setErrors({})
+
+    let responseData: any = null
+
+    try {
+      if (selectedPaymentMethod === 'card') {
+        // Handle card payment
+        if (!stripe || !elements) {
+          setPaymentError('Stripe not loaded. Please refresh the page.')
+          setIsProcessing(false)
+          return
+        }
+
+        const cardElement = elements.getElement(CardElement)
+        if (!cardElement) {
+          setPaymentError('Card element not found.')
+          setIsProcessing(false)
+          return
+        }
+
+        // Create payment intent
+        const response = await fetch('/api/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cart, // Include cart items
+            amount: Math.round(formData.total * 100), // Convert to cents
+            currency: 'usd',
+            customerInfo: {
+              name: formData.cardholderName,
+              email: formData.email,
+              phone: formData.phone,
+              address: {
+                line1: formData.address,
+                city: formData.city,
+                state: formData.state,
+                postal_code: formData.zipCode,
+                country: 'US'
+              }
+            }
+          })
+        })
+
+        responseData = await response.json()
+        
+        console.log('📥 Payment intent response:', responseData)
+        
+        if (!response.ok) {
+          throw new Error(responseData.error || 'Payment intent creation failed')
+        }
+        
+        const { client_secret } = responseData
+        
+        if (!client_secret) {
+          throw new Error('No client secret received from server')
+        }
+        
+        console.log('✅ Payment intent created, proceeding with confirmation...')
+
+        // Confirm payment
+        console.log('🔄 Confirming payment with Stripe...')
+        const { error, paymentIntent } = await stripe.confirmCardPayment(client_secret, {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              name: formData.cardholderName,
+              email: formData.email,
+              phone: formData.phone,
+              address: {
+                line1: formData.address,
+                city: formData.city,
+                state: formData.state,
+                postal_code: formData.zipCode,
+                country: 'US'
+              }
+            }
+          }
+        })
+
+        console.log('💳 Payment confirmation result:', { error, paymentIntent })
+
+        if (error) {
+          console.error('❌ Payment failed:', error)
+          setPaymentError(error.message || 'Payment failed')
+          setIsProcessing(false)
+        } else {
+          // Payment successful - update order status
+          console.log('✅ Payment confirmed successfully!')
+          console.log('📋 Payment intent details:', paymentIntent)
+          
+          // Update order status to paid
+          try {
+            console.log('🔄 Updating order status...')
+            const updateResponse = await fetch('/api/update-order-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderId: responseData.orderId,
+                status: 'paid',
+                paymentStatus: 'succeeded',
+                paymentIntentId: paymentIntent?.id || responseData.paymentIntentId || 'unknown'
+              })
+            })
+            
+            const updateResult = await updateResponse.json()
+            console.log('📝 Update response:', updateResult)
+            
+            if (updateResponse.ok) {
+              console.log('✅ Order status updated to paid successfully!')
+            } else {
+              console.error('❌ Failed to update order status:', updateResult)
+            }
+          } catch (updateError) {
+            console.error('❌ Error updating order status:', updateError)
+          }
+          
+          onComplete()
+        }
+      } else {
+        // Mobile payment methods are handled by the MobilePaymentOptions component
+        setIsProcessing(false)
+      }
+    } catch (error) {
+      console.error('Payment error:', error)
+      setPaymentError('Payment processing failed. Please try again.')
+      setIsProcessing(false)
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Payment Method</h1>
+        <p className="text-gray-600">Choose your preferred payment method</p>
+      </div>
+
+      {/* Payment Method Selection */}
+      <div className="bg-white rounded-2xl shadow-lg p-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Card Payment */}
+          <div 
+            className={`border-2 rounded-xl p-6 cursor-pointer transition-all ${
+              selectedPaymentMethod === 'card' 
+                ? 'border-emerald-500 bg-emerald-50' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => setSelectedPaymentMethod('card')}
+          >
+            <div className="flex items-center mb-4">
+              <CreditCard className="h-6 w-6 text-emerald-600 mr-3" />
+              <h3 className="text-lg font-semibold text-gray-900">Credit/Debit Card</h3>
+            </div>
+            <p className="text-gray-600 mb-4">Pay securely with your credit or debit card</p>
+            
+            {selectedPaymentMethod === 'card' && (
+              <div className="space-y-4">
+                <div className="border border-gray-300 rounded-lg p-4">
+                  <CardElement
+                    options={{
+                      style: {
+                        base: {
+                          fontSize: '16px',
+                          color: '#424770',
+                          '::placeholder': {
+                            color: '#aab7c4',
+                          },
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Payment */}
+          <div 
+            className={`border-2 rounded-xl p-6 cursor-pointer transition-all ${
+              selectedPaymentMethod === 'mobile' 
+                ? 'border-emerald-500 bg-emerald-50' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => setSelectedPaymentMethod('mobile')}
+          >
+            <div className="flex items-center mb-4">
+              <Smartphone className="h-6 w-6 text-emerald-600 mr-3" />
+              <h3 className="text-lg font-semibold text-gray-900">Mobile Payment</h3>
+            </div>
+            <p className="text-gray-600 mb-4">Pay with Apple Pay, Google Pay, Chime, or Cash App</p>
+            
+            {selectedPaymentMethod === 'mobile' && (
+              <MobilePaymentOptions
+                total={formData.total}
+                customerInfo={{
+                  name: formData.cardholderName,
+                  email: formData.email,
+                  phone: formData.phone,
+                  address: {
+                    line1: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    postal_code: formData.zipCode,
+                    country: 'US'
+                  },
+                  items: cart
+                }}
+                onPaymentSuccess={handleMobilePaymentSuccess}
+                onPaymentError={handleMobilePaymentError}
+                isProcessing={isProcessing}
+                setIsProcessing={setIsProcessing}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Payment Error Display */}
+        {paymentError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+              <p className="text-red-600 font-medium">Payment Error</p>
+            </div>
+            <p className="text-red-600 text-sm mt-1">{paymentError}</p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex justify-between mt-8">
+          <button
+            onClick={onBack}
+            className="border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300 flex items-center"
+          >
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Back to Information
+          </button>
+          
+          <button
+            onClick={handlePayment}
+            disabled={isProcessing}
+            className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            {isProcessing ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                Processing...
+              </>
+            ) : (
+              <>
+                Complete Payment
+                <CheckCircle className="h-5 w-5 ml-2" />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Success Component
+const SuccessStep = ({ 
+  onContinueShopping 
+}: {
+  onContinueShopping: () => void
+}) => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="text-center max-w-md mx-auto">
+        <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="h-10 w-10 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">Payment Successful!</h1>
+        <p className="text-gray-600 mb-4">
+          Thank you for your order! You will receive confirmation notifications via email and SMS shortly.
+        </p>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center space-x-2 mb-2">
+            <CheckCircle className="h-5 w-5 text-emerald-600" />
+            <span className="text-sm font-medium text-emerald-800">Notifications Sent</span>
+          </div>
+          <div className="text-sm text-emerald-700 space-y-1">
+            <p>📧 Email confirmation sent to your email address</p>
+            <p>📱 SMS confirmation sent to your phone number</p>
+            <p>📋 Order details and tracking information included</p>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link
+            href="/orders?success=true"
+            className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all duration-300"
+          >
+            View Your Orders Now
+          </Link>
+          <button
+            onClick={onContinueShopping}
+            className="border-2 border-emerald-500 text-emerald-700 px-8 py-3 rounded-xl font-semibold hover:bg-emerald-50 transition-all duration-300"
+          >
+            Continue Shopping
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Main Checkout Component
+const CheckoutForm = () => {
   const { cart, getCartTotal, clearCart } = useCart()
   const { data: session } = useSession()
   const router = useRouter()
-  const stripe = useStripe()
-  const elements = useElements()
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [redirectCountdown, setRedirectCountdown] = useState(5)
-  const [autoRedirect, setAutoRedirect] = useState(true)
   
-  // Auto-redirect to orders page after successful payment
-  useEffect(() => {
-    if (isSuccess && autoRedirect && redirectCountdown > 0) {
-      const timer = setTimeout(() => {
-        setRedirectCountdown(prev => prev - 1)
-      }, 1000)
-      return () => clearTimeout(timer)
-    } else if (isSuccess && autoRedirect && redirectCountdown === 0) {
-      router.push('/orders?success=true')
-    }
-  }, [isSuccess, autoRedirect, redirectCountdown, router])
-  
-  // Form state - pre-fill with user data if available
+  const [currentStep, setCurrentStep] = useState<'info' | 'payment' | 'success'>('info')
+  // Calculate total with tax (8% tax rate)
+  const calculateTotalWithTax = () => {
+    const subtotal = getCartTotal()
+    const taxRate = 0.08
+    const taxAmount = Math.round(subtotal * taxRate * 100) / 100
+    return subtotal + taxAmount
+  }
+
   const [formData, setFormData] = useState({
-    cardholderName: session?.user?.name || '',
-    email: session?.user?.email || '',
+    cardholderName: '',
+    email: '',
     phone: '',
     address: '',
     city: '',
     state: '',
     zipCode: '',
-    country: 'US'
+    total: calculateTotalWithTax()
   })
-  
-  // Calculate total with test product logic
-  const totalPrice = getCartTotal()
-  const totalItems = cart.length
-  
-  // Check if cart contains only test products
-  const testProductIds = [5] // TEST PRODUCT ID
-  const hasOnlyTestProducts = cart.every(item => testProductIds.includes(item.id))
-  const hasTestProducts = cart.some(item => testProductIds.includes(item.id))
-  const hasRegularProducts = cart.some(item => !testProductIds.includes(item.id))
-  
-  // Apply pricing logic
-  let subtotal = totalPrice
-  let shipping = 0 // Free shipping for all orders
-  let tax = 0
-  let finalTotal = 0
-  
-  if (hasOnlyTestProducts) {
-    // Test products only - charge original price but no shipping/tax
-    subtotal = totalPrice
-    shipping = 0
-    tax = 0
-    finalTotal = subtotal + shipping + tax
-  } else if (hasTestProducts && hasRegularProducts) {
-    // Mixed cart - test products: original price, no tax; regular products: normal pricing
-    const testItemsTotal = cart
-      .filter(item => testProductIds.includes(item.id))
-      .reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    
-    const regularItemsTotal = cart
-      .filter(item => !testProductIds.includes(item.id))
-      .reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    
-    subtotal = testItemsTotal + regularItemsTotal
-    shipping = 0
-    tax = regularItemsTotal * 0.08 // Tax only on regular products
-    finalTotal = subtotal + shipping + tax
-  } else {
-    // Regular products only - normal pricing
-    subtotal = totalPrice
-    shipping = 0
-    tax = subtotal * 0.08
-    finalTotal = subtotal + shipping + tax
-  }
+  const [errors, setErrors] = useState<any>({})
 
-  // Log client-side calculation for verification
-  console.log('🛒 Client-Side Amount Calculation:')
-  console.log('  Cart Items:', cart.length)
-  console.log('  Has Only Test Products:', hasOnlyTestProducts)
-  console.log('  Has Mixed Products:', hasTestProducts && hasRegularProducts)
-  console.log('  Subtotal:', subtotal)
-  console.log('  Shipping:', shipping)
-  console.log('  Tax (8%):', tax)
-  console.log('  Final Total:', finalTotal)
-
-  // Update form data when user changes
+  // Update total when cart changes
   useEffect(() => {
-    if (session?.user) {
-      setFormData(prev => ({
-        ...prev,
-        cardholderName: session.user.name || prev.cardholderName,
-        email: session.user.email || prev.email
-      }))
-    }
-  }, [session])
+    setFormData(prev => ({
+      ...prev,
+      total: calculateTotalWithTax()
+    }))
+  }, [cart, getCartTotal])
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    
-    // Real-time validation
-    const trimmedValue = value.trim()
-    let fieldError = ''
-    
-    switch (field) {
-      case 'cardholderName':
-        if (trimmedValue && trimmedValue.length < 2) {
-          fieldError = 'Cardholder name must be at least 2 characters'
-        } else if (trimmedValue && trimmedValue.length > 50) {
-          fieldError = 'Cardholder name must be less than 50 characters'
-        }
-        break
-        
-      case 'email':
-        if (trimmedValue) {
-          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-          if (!emailRegex.test(trimmedValue)) {
-            fieldError = 'Please enter a valid email address (e.g., user@example.com)'
-          } else if (trimmedValue.length > 254) {
-            fieldError = 'Email address is too long'
-          }
-        }
-        break
-        
-      case 'phone':
-        if (trimmedValue) {
-          const cleanedPhone = trimmedValue.replace(/[\s\-\(\)\.]/g, '')
-          if (cleanedPhone.length < 10) {
-            fieldError = 'Phone number must be at least 10 digits'
-          }
-        }
-        break
-        
-      case 'address':
-        if (trimmedValue && trimmedValue.length < 5) {
-          fieldError = 'Street address must be at least 5 characters'
-        } else if (trimmedValue && trimmedValue.length > 100) {
-          fieldError = 'Street address must be less than 100 characters'
-        }
-        break
-        
-      case 'city':
-        if (trimmedValue && trimmedValue.length < 2) {
-          fieldError = 'City name must be at least 2 characters'
-        } else if (trimmedValue && trimmedValue.length > 50) {
-          fieldError = 'City name must be less than 50 characters'
-        }
-        break
-        
-      case 'state':
-        if (trimmedValue && trimmedValue.length < 2) {
-          fieldError = 'State must be at least 2 characters'
-        } else if (trimmedValue && trimmedValue.length > 30) {
-          fieldError = 'State must be less than 30 characters'
-        }
-        break
-        
-      case 'zipCode':
-        if (trimmedValue && trimmedValue.length < 5) {
-          fieldError = 'ZIP code must be at least 5 digits'
-        }
-        break
-    }
-    
-    setErrors(prev => ({ ...prev, [field]: fieldError }))
-  }
-
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {}
-    
-    // Cardholder Name Validation
-    const cardholderName = formData.cardholderName.trim()
-    if (!cardholderName) {
-      newErrors.cardholderName = 'Cardholder name is required'
-    } else if (cardholderName.length < 2) {
-      newErrors.cardholderName = 'Cardholder name must be at least 2 characters'
-    } else if (cardholderName.length > 50) {
-      newErrors.cardholderName = 'Cardholder name must be less than 50 characters'
-    }
-    
-    // Card Element Validation
-    const cardElement = elements?.getElement(CardElement)
-    if (!cardElement) {
-      newErrors.payment = 'Card information is required'
-    } else {
-      // We'll validate the card element during payment processing
-      // The CardElement will show validation errors automatically
-      // For now, we just check if the element exists
-    }
-    
-    // Email Validation
-    const email = formData.email.trim()
-    if (!email) {
-      newErrors.email = 'Email address is required'
-    } else {
-      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-      if (!emailRegex.test(email)) {
-        newErrors.email = 'Please enter a valid email address (e.g., user@example.com)'
-      } else if (email.length > 254) {
-        newErrors.email = 'Email address is too long'
-      }
-    }
-    
-    // Phone Validation
-    const phone = formData.phone.trim()
-    if (!phone) {
-      newErrors.phone = 'Phone number is required'
-    } else {
-      const cleanedPhone = phone.replace(/[\s\-\(\)\.]/g, '')
-      if (cleanedPhone.length < 10) {
-        newErrors.phone = 'Phone number must be at least 10 digits'
-      }
-    }
-    
-    // Address Validation
-    const address = formData.address.trim()
-    if (!address) {
-      newErrors.address = 'Street address is required'
-    } else if (address.length < 5) {
-      newErrors.address = 'Street address must be at least 5 characters'
-    } else if (address.length > 100) {
-      newErrors.address = 'Street address must be less than 100 characters'
-    }
-    
-    // City Validation
-    const city = formData.city.trim()
-    if (!city) {
-      newErrors.city = 'City is required'
-    } else if (city.length < 2) {
-      newErrors.city = 'City name must be at least 2 characters'
-    } else if (city.length > 50) {
-      newErrors.city = 'City name must be less than 50 characters'
-    }
-    
-    // State Validation
-    const state = formData.state.trim()
-    if (!state) {
-      newErrors.state = 'State is required'
-    } else if (state.length < 2) {
-      newErrors.state = 'State must be at least 2 characters'
-    } else if (state.length > 30) {
-      newErrors.state = 'State must be less than 30 characters'
-    }
-    
-    // ZIP Code Validation
-    const zipCode = formData.zipCode.trim()
-    if (!zipCode) {
-      newErrors.zipCode = 'ZIP code is required'
-    } else if (zipCode.length < 5) {
-      newErrors.zipCode = 'ZIP code must be at least 5 digits'
-    }
-    
-    // Country Validation (if not US)
-    if (formData.country && formData.country !== 'US') {
-      // Add country-specific validation if needed
-    }
-    
-    // Remove empty error messages
-    const cleanErrors = Object.fromEntries(
-      Object.entries(newErrors).filter(([key, value]) => value && value.trim() !== '')
-    )
-    
-    setErrors(cleanErrors)
-    console.log('Validation result - cleanErrors:', cleanErrors)
-    console.log('Validation result - has errors:', Object.keys(cleanErrors).length > 0)
-    return Object.keys(cleanErrors).length === 0
-  }
-
-  const handleTryAgain = async () => {
-    try {
-      // Clear any existing errors
-      setErrors({})
-      setIsProcessing(false)
-      
-      // Sign out the user
-      await signOut({ 
-        callbackUrl: '/auth/signin',
-        redirect: true 
-      })
-    } catch (error) {
-      console.error('Error during sign out:', error)
-      // Fallback redirect
-      window.location.href = '/auth/signin'
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!stripe || !elements) {
-      return
-    }
-    
-    // Debug: Log current errors
-    console.log('Current errors:', errors)
-    console.log('Errors object keys:', Object.keys(errors))
-    console.log('Non-empty errors:', Object.keys(errors).filter(key => errors[key] && errors[key].trim() !== ''))
-    
-    if (!validateForm()) {
-      console.log('Form validation failed')
-      return
-    }
-    
-    setIsProcessing(true)
-    
-    try {
-      // Create payment intent
-      const response = await fetch('/api/create-payment-intent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: cart.map(item => ({
-            product: {
-              id: item.id,
-              name: item.name,
-              price: item.price,
-              image_url: item.img
-            },
-            quantity: item.quantity
-          })),
-          customerInfo: formData,
-          clientTotal: finalTotal // Send client-calculated total for validation
-        }),
-      })
-      
-      const { clientSecret, orderId } = await response.json()
-      
-      if (!clientSecret) {
-        throw new Error('Failed to create payment intent')
-      }
-      
-      // Confirm payment with Stripe using CardElement
-      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: elements.getElement(CardElement)!,
-          billing_details: {
-            name: formData.cardholderName,
-            email: formData.email,
-            phone: formData.phone,
-            address: {
-              line1: formData.address,
-              city: formData.city,
-              state: formData.state,
-              postal_code: formData.zipCode,
-              country: formData.country,
-            },
-          },
-        },
-      })
-      
-      if (error) {
-        console.error('Payment failed:', error)
-        
-        // Enhanced error handling for different card validation issues
-        let errorMessage = error.message || 'Payment failed'
-        
-        if (error.type === 'card_error') {
-          switch (error.code) {
-            case 'card_declined':
-              errorMessage = 'Your card was declined. Please try a different card.'
-              break
-            case 'expired_card':
-              errorMessage = 'Your card has expired. Please use a different card.'
-              break
-            case 'incorrect_cvc':
-              errorMessage = 'The security code (CVC) is incorrect. Please check and try again.'
-              break
-            case 'incorrect_number':
-              errorMessage = 'The card number is incorrect. Please check and try again.'
-              break
-            case 'incorrect_zip':
-              errorMessage = 'The ZIP code is incorrect. Please check and try again.'
-              break
-            case 'invalid_cvc':
-              errorMessage = 'The security code (CVC) is invalid. Please check and try again.'
-              break
-            case 'invalid_expiry_month':
-              errorMessage = 'The expiration month is invalid. Please check and try again.'
-              break
-            case 'invalid_expiry_year':
-              errorMessage = 'The expiration year is invalid. Please check and try again.'
-              break
-            case 'invalid_number':
-              errorMessage = 'The card number is invalid. Please check and try again.'
-              break
-            case 'processing_error':
-              errorMessage = 'An error occurred while processing your card. Please try again.'
-              break
-            default:
-              errorMessage = `Card Error: ${error.message}`
-          }
-        } else if (error.type === 'validation_error') {
-          errorMessage = `Validation Error: ${error.message}`
-        } else if (error.type === 'authentication_error') {
-          errorMessage = 'Authentication failed. Please try again or contact support.'
-        } else if (error.type === 'api_error') {
-          errorMessage = 'A server error occurred. Please try again in a few moments.'
-        } else if (error.type === 'rate_limit_error') {
-          errorMessage = 'Too many requests. Please wait a moment and try again.'
-        } else if (error.type === 'invalid_request_error') {
-          errorMessage = 'Invalid payment request. Please check your information and try again.'
-        }
-        
-        setErrors({ payment: errorMessage })
-        setIsProcessing(false)
-      } else if (paymentIntent.status === 'succeeded') {
-        setIsProcessing(false)
-        setIsSuccess(true)
-        
-        // Update order status immediately as fallback
-        try {
-          console.log('🔄 Attempting to update order status for orderId:', orderId)
-          
-          // Small delay to ensure order is fully created
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          
-          const updateResponse = await fetch('/api/update-order-status', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              orderId: orderId,
-              status: 'paid',
-              paymentIntentId: paymentIntent.id,
-              paymentStatus: 'succeeded'
-            }),
-          })
-          
-          if (updateResponse.ok) {
-            console.log('✅ Order status updated successfully')
-            const result = await updateResponse.json()
-            console.log('📋 Update response:', result)
-            
-            // Send order confirmation notifications
-            try {
-              console.log('📧 Sending order confirmation notifications')
-              const notificationResponse = await fetch('/api/send-order-notification', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  orderId: orderId
-                }),
-              })
-              
-              if (notificationResponse.ok) {
-                const notificationResult = await notificationResponse.json()
-                console.log('✅ Notifications sent successfully:', notificationResult)
-              } else {
-                console.error('❌ Failed to send notifications')
-                const errorText = await notificationResponse.text()
-                console.error('📋 Notification error response:', errorText)
-              }
-            } catch (notificationError) {
-              console.error('❌ Error sending notifications:', notificationError)
-            }
-          } else {
-            console.error('❌ Failed to update order status')
-            const errorText = await updateResponse.text()
-            console.error('📋 Error response:', errorText)
-          }
-        } catch (error) {
-          console.error('❌ Error updating order status:', error)
-        }
-        
-        // Clear cart after successful payment
-        setTimeout(() => {
-          clearCart()
-        }, 2000)
-      }
-    } catch (error) {
-      console.error('Payment error:', error)
-      setErrors({ payment: 'Payment processing failed. Please try again.' })
-      setIsProcessing(false)
-    }
-  }
-
-  if (cart.length === 0) {
+  // Redirect if cart is empty (but not if we're on success step)
+  if (cart.length === 0 && currentStep !== 'success') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 flex items-center justify-center">
         <div className="text-center">
@@ -590,58 +739,13 @@ const PaymentForm = () => {
     )
   }
 
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto">
-          <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="h-10 w-10 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Payment Successful!</h1>
-          <p className="text-gray-600 mb-4">
-            Thank you for your order! You will receive confirmation notifications via email and SMS shortly.
-          </p>
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <CheckCircle className="h-5 w-5 text-emerald-600" />
-              <span className="text-sm font-medium text-emerald-800">Notifications Sent</span>
-            </div>
-            <div className="text-sm text-emerald-700 space-y-1">
-              <p>📧 Email confirmation sent to your email address</p>
-              <p>📱 SMS confirmation sent to your phone number</p>
-              <p>📋 Order details and tracking information included</p>
-            </div>
-          </div>
-          {autoRedirect && (
-            <p className="text-emerald-600 font-semibold mb-4">
-              Redirecting to your orders in {redirectCountdown} seconds...
-            </p>
-          )}
-          {autoRedirect && (
-            <button
-              onClick={() => setAutoRedirect(false)}
-              className="text-sm text-gray-500 hover:text-gray-700 underline mb-4"
-            >
-              Cancel auto-redirect
-            </button>
-          )}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/orders?success=true"
-              className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all duration-300"
-            >
-              View Your Orders Now
-            </Link>
-            <Link
-              href="/"
-              className="border-2 border-emerald-500 text-emerald-700 px-8 py-3 rounded-xl font-semibold hover:bg-emerald-50 transition-all duration-300"
-            >
-              Continue Shopping
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
+  const handleStepComplete = () => {
+    setCurrentStep('success')
+    clearCart()
+  }
+
+  const handleContinueShopping = () => {
+    router.push('/')
   }
 
   return (
@@ -655,471 +759,62 @@ const PaymentForm = () => {
           >
             <ArrowLeft className="h-6 w-6 text-gray-600" />
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Secure Checkout</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Checkout</h1>
+            <p className="text-gray-600">Step {currentStep === 'info' ? '1' : '2'} of 2</p>
+          </div>
         </div>
 
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Checkout Form */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center space-x-3 mb-6">
-              <Lock className="h-6 w-6 text-green-600" />
-              <h2 className="text-2xl font-bold text-gray-900">Payment Information</h2>
+        {/* Progress Indicator */}
+        <div className="flex items-center justify-center mb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`flex items-center ${currentStep === 'info' ? 'text-emerald-600' : 'text-gray-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                currentStep === 'info' ? 'bg-emerald-500 text-white' : 'bg-gray-300 text-gray-600'
+              }`}>
+                1
+              </div>
+              <span className="ml-2 font-medium">Information</span>
             </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Stripe Card Element */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Card Information *
-                </label>
-                <div className={`p-4 border-2 rounded-lg bg-white ${
-                  errors.payment ? 'border-red-500' : 'border-gray-300'
-                }`}>
-                  <CardElement
-                    onChange={(event) => {
-                      if (event.error) {
-                        let errorMessage = event.error?.message || 'Invalid card information'
-                        
-                        // Provide more specific error messages
-                        if (event.error.code === 'incomplete_cvc') {
-                          errorMessage = 'Please enter your card\'s security code (CVC)'
-                        } else if (event.error.code === 'incomplete_expiry') {
-                          errorMessage = 'Please enter your card\'s expiration date'
-                        } else if (event.error.code === 'incomplete_number') {
-                          errorMessage = 'Please enter your card number'
-                        } else if (event.error.code === 'invalid_cvc') {
-                          errorMessage = 'Your card\'s security code (CVC) is incorrect'
-                        } else if (event.error.code === 'invalid_expiry') {
-                          errorMessage = 'Your card\'s expiration date is invalid'
-                        } else if (event.error.code === 'invalid_number') {
-                          errorMessage = 'Your card number is invalid'
-                        }
-                        
-                        setErrors(prev => ({ ...prev, payment: errorMessage }))
-                      } else {
-                        setErrors(prev => {
-                          const newErrors = { ...prev }
-                          delete newErrors.payment
-                          return newErrors
-                        })
-                      }
-                    }}
-                    options={{
-                      style: {
-                        base: {
-                          fontSize: '16px',
-                          color: '#374151',
-                          fontFamily: 'system-ui, sans-serif',
-                          '::placeholder': {
-                            color: '#9CA3AF',
-                          },
-                        },
-                        invalid: {
-                          color: '#EF4444',
-                        },
-                      },
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Please ensure your card details are correct, including expiration date and CVC.
-                </p>
-                {errors.payment && (
-                  <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center mb-3">
-                      <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                      <span className="text-red-700 font-medium">Payment Error</span>
-                    </div>
-                    <p className="text-red-600 text-sm mb-3">
-                      {errors.payment}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleTryAgain}
-                      className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center"
-                    >
-                      <User className="h-4 w-4 mr-2" />
-                      Try Again (Sign In)
-                    </button>
-                  </div>
-                )}
+            <div className={`w-16 h-1 ${currentStep === 'payment' || currentStep === 'success' ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+            <div className={`flex items-center ${currentStep === 'payment' || currentStep === 'success' ? 'text-emerald-600' : 'text-gray-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                currentStep === 'payment' || currentStep === 'success' ? 'bg-emerald-500 text-white' : 'bg-gray-300 text-gray-600'
+              }`}>
+                2
               </div>
-
-              {/* Cardholder Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Cardholder Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.cardholderName}
-                  onChange={(e) => handleInputChange('cardholderName', e.target.value)}
-                  placeholder="John Doe"
-                                      className={`w-full px-4 py-3 border-2 rounded-lg text-lg font-medium text-gray-900 bg-white transition-colors ${
-                      errors.cardholderName 
-                        ? 'border-red-500 bg-red-50' 
-                        : formData.cardholderName.trim() && !errors.cardholderName
-                        ? 'border-green-500 bg-green-50' 
-                        : 'border-gray-300 focus:border-emerald-500'
-                    } focus:outline-none`}
-                />
-                {errors.cardholderName && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="h-4 w-4 mr-1" />
-                    {errors.cardholderName}
-                  </p>
-                )}
-                {formData.cardholderName.trim() && !errors.cardholderName && (
-                  <p className="text-green-600 text-sm mt-1 flex items-center">
-                    <CheckCircle className="h-4 w-4 mr-1" />
-                    Cardholder name looks good
-                  </p>
-                )}
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  placeholder="john@example.com"
-                  className={`w-full px-4 py-3 border-2 rounded-lg text-lg font-medium text-gray-900 bg-white transition-colors ${
-                    errors.email 
-                      ? 'border-red-500 bg-red-50' 
-                      : formData.email.trim() && !errors.email
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-300 focus:border-amber-500'
-                  } focus:outline-none`}
-                />
-                {errors.email && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="h-4 w-4 mr-1" />
-                    {errors.email}
-                  </p>
-                )}
-                {formData.email.trim() && !errors.email && (
-                  <p className="text-green-600 text-sm mt-1 flex items-center">
-                    <CheckCircle className="h-4 w-4 mr-1" />
-                    Email address looks good
-                  </p>
-                )}
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Phone Number *
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  placeholder="+1 (555) 123-4567"
-                  className={`w-full px-4 py-3 border-2 rounded-lg text-lg font-medium text-gray-900 bg-white transition-colors ${
-                    errors.phone 
-                      ? 'border-red-500 bg-red-50' 
-                      : formData.phone.trim() && !errors.phone
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-300 focus:border-amber-500'
-                  } focus:outline-none`}
-                />
-                {errors.phone && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="h-4 w-4 mr-1" />
-                    {errors.phone}
-                  </p>
-                )}
-                {formData.phone.trim() && !errors.phone && (
-                  <p className="text-green-600 text-sm mt-1 flex items-center">
-                    <CheckCircle className="h-4 w-4 mr-1" />
-                    Phone number looks good
-                  </p>
-                )}
-              </div>
-
-              {/* Billing Address */}
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Billing Address</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Street Address *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.address}
-                      onChange={(e) => handleInputChange('address', e.target.value)}
-                      placeholder="123 Main Street"
-                      className={`w-full px-4 py-3 border-2 rounded-lg text-lg font-medium text-gray-900 bg-white transition-colors ${
-                        errors.address 
-                          ? 'border-red-500 bg-red-50' 
-                          : formData.address.trim() && !errors.address
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-300 focus:border-amber-500'
-                      } focus:outline-none`}
-                    />
-                    {errors.address && (
-                      <p className="text-red-500 text-sm mt-1 flex items-center">
-                        <AlertCircle className="h-4 w-4 mr-1" />
-                        {errors.address}
-                      </p>
-                    )}
-                    {formData.address.trim() && !errors.address && (
-                      <p className="text-green-600 text-sm mt-1 flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Address looks good
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        City *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.city}
-                        onChange={(e) => handleInputChange('city', e.target.value)}
-                        placeholder="New York"
-                        className={`w-full px-4 py-3 border-2 rounded-lg text-lg font-medium text-gray-900 bg-white transition-colors ${
-                          errors.city 
-                            ? 'border-red-500 bg-red-50' 
-                            : formData.city.trim() && !errors.city
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-300 focus:border-amber-500'
-                        } focus:outline-none`}
-                      />
-                      {errors.city && (
-                        <p className="text-red-500 text-sm mt-1 flex items-center">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          {errors.city}
-                        </p>
-                      )}
-                      {formData.city.trim() && !errors.city && (
-                        <p className="text-green-600 text-sm mt-1 flex items-center">
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          City looks good
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        State *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.state}
-                        onChange={(e) => handleInputChange('state', e.target.value)}
-                        placeholder="NY"
-                        className={`w-full px-4 py-3 border-2 rounded-lg text-lg font-medium text-gray-900 bg-white transition-colors ${
-                          errors.state 
-                            ? 'border-red-500 bg-red-50' 
-                            : formData.state.trim() && !errors.state
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-300 focus:border-amber-500'
-                        } focus:outline-none`}
-                      />
-                      {errors.state && (
-                        <p className="text-red-500 text-sm mt-1 flex items-center">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          {errors.state}
-                        </p>
-                      )}
-                      {formData.state.trim() && !errors.state && (
-                        <p className="text-green-600 text-sm mt-1 flex items-center">
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          State looks good
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      ZIP Code *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.zipCode}
-                      onChange={(e) => handleInputChange('zipCode', e.target.value)}
-                      placeholder="10001"
-                      className={`w-full px-4 py-3 border-2 rounded-lg text-lg font-medium text-gray-900 bg-white transition-colors ${
-                        errors.zipCode 
-                          ? 'border-red-500 bg-red-50' 
-                          : formData.zipCode.trim() && !errors.zipCode
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-300 focus:border-amber-500'
-                      } focus:outline-none`}
-                    />
-                    {errors.zipCode && (
-                      <p className="text-red-500 text-sm mt-1 flex items-center">
-                        <AlertCircle className="h-4 w-4 mr-1" />
-                        {errors.zipCode}
-                      </p>
-                    )}
-                    {formData.zipCode.trim() && !errors.zipCode && (
-                      <p className="text-green-600 text-sm mt-1 flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        ZIP code looks good
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Form Validation Summary */}
-              {Object.keys(errors).filter(key => errors[key] && errors[key].trim() !== '').length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <h4 className="text-red-800 font-semibold mb-2 flex items-center">
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Please fix the following errors:
-                  </h4>
-                  <ul className="text-red-700 text-sm space-y-1">
-                    {Object.entries(errors)
-                      .filter(([field, error]) => error && error.trim() !== '')
-                      .map(([field, error]) => (
-                        <li key={field} className="flex items-center">
-                          <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-                          {error}
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isProcessing || Object.keys(errors).filter(key => errors[key] && errors[key].trim() !== '').length > 0}
-                className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-4 rounded-xl font-semibold text-lg hover:from-emerald-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                {isProcessing ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Processing Payment...</span>
-                  </div>
-                ) : Object.keys(errors).filter(key => errors[key] && errors[key].trim() !== '').length > 0 ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <AlertCircle className="h-5 w-5" />
-                    <span>Please fix form errors</span>
-                  </div>
-                ) : (
-                  `Pay $${finalTotal.toFixed(2)}`
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Order Summary */}
-          <div className="space-y-6">
-            {/* Order Summary Card */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Order Summary</h2>
-              
-              {/* Order Items */}
-              <div className="space-y-4 mb-6">
-                {cart.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-4">
-                    <div className="relative w-16 h-16 flex-shrink-0">
-                      <Image
-                        src={item.img || 'https://images.unsplash.com/photo-1601050690597-df0568f70950?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'}
-                        alt={item.name}
-                        fill
-                        className="object-cover rounded-lg"
-                        sizes="64px"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                      <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">
-                        ${(item.price * item.quantity).toFixed(2)}
-                        {testProductIds.includes(item.id) && (
-                          <span className="text-xs text-green-600 ml-1">(no tax)</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Pricing Breakdown */}
-              <div className="space-y-3 border-t border-gray-200 pt-4">
-                {/* Test Product Notice */}
-                {hasOnlyTestProducts && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
-                    <div className="flex items-center">
-                      <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                      <span className="text-sm font-medium text-green-800">
-                        🎁 Test products: Original price, no tax or shipping!
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {hasTestProducts && hasRegularProducts && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                    <div className="flex items-center">
-                      <CheckCircle className="h-5 w-5 text-blue-600 mr-2" />
-                      <span className="text-sm font-medium text-blue-800">
-                        🎁 Test products: Original price, no tax!
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-black font-semibold">Subtotal</span>
-                  <span className="font-semibold text-green-600">${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-black font-semibold">Shipping</span>
-                  <span className="font-semibold text-green-600">
-                    FREE
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-black font-semibold">
-                    Tax
-                    {hasTestProducts && (
-                      <span className="text-xs text-gray-500 ml-1">(test products tax-free)</span>
-                    )}
-                  </span>
-                  <span className="font-semibold text-green-600">${tax.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-xl font-bold border-t border-gray-200 pt-3">
-                  <span className="text-black">Total</span>
-                  <span className="text-green-600">${finalTotal.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Security Features */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Security Features</h3>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <Shield className="h-5 w-5 text-green-600" />
-                  <span className="text-sm text-gray-700">256-bit SSL encryption</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Lock className="h-5 w-5 text-green-600" />
-                  <span className="text-sm text-gray-700">PCI DSS compliant</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="text-sm text-gray-700">Secure payment processing</span>
-                </div>
-              </div>
+              <span className="ml-2 font-medium">Payment</span>
             </div>
           </div>
+        </div>
+
+        {/* Step Content */}
+        <div className="max-w-4xl mx-auto">
+          {currentStep === 'info' && (
+            <CustomerInfoStep
+              formData={formData}
+              setFormData={setFormData}
+              errors={errors}
+              setErrors={setErrors}
+              onNext={() => setCurrentStep('payment')}
+            />
+          )}
+          
+          {currentStep === 'payment' && (
+            <PaymentMethodStep
+              formData={formData}
+              setFormData={setFormData}
+              errors={errors}
+              setErrors={setErrors}
+              onBack={() => setCurrentStep('info')}
+              onComplete={handleStepComplete}
+              cart={cart}
+            />
+          )}
+          
+          {currentStep === 'success' && (
+            <SuccessStep onContinueShopping={handleContinueShopping} />
+          )}
         </div>
       </div>
     </div>
@@ -1147,71 +842,17 @@ const CheckoutPage = () => {
     )
   }
 
-  // Check if user is authenticated
   if (!session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto">
-          <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <User className="h-10 w-10 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Login Required</h1>
-          <p className="text-gray-600 mb-6">
-            You need to be logged in to proceed with checkout. Please sign in to continue with your purchase.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/auth/signin"
-              className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all duration-300"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/auth/signup"
-              className="border-2 border-emerald-500 text-emerald-700 px-6 py-3 rounded-xl font-semibold hover:bg-emerald-50 transition-all duration-300"
-            >
-              Create Account
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (cart.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
-          <p className="text-gray-600 mb-6">Add some items to your cart before checking out.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Please sign in to continue</h1>
+          <p className="text-gray-600 mb-6">You need to be signed in to proceed with checkout.</p>
           <Link
-            href="/products"
-            className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all duration-300"
+            href="/auth/signin"
+            className="bg-gradient-to-r from-amber-500 to-orange-500 text-orange-100 px-6 py-3 rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition-all duration-300"
           >
-            Browse Products
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  // Check if Stripe is properly configured
-  if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto">
-          <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <AlertCircle className="h-10 w-10 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Stripe Not Configured</h1>
-          <p className="text-gray-600 mb-6">
-            Please set up your Stripe environment variables to enable payment processing.
-          </p>
-          <Link
-            href="/cart"
-            className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all duration-300"
-          >
-            Back to Cart
+            Sign In
           </Link>
         </div>
       </div>
@@ -1220,7 +861,7 @@ const CheckoutPage = () => {
 
   return (
     <Elements stripe={stripePromise}>
-      <PaymentForm />
+      <CheckoutForm />
     </Elements>
   )
 }

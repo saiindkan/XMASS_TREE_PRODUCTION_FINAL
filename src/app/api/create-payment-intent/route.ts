@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
+  apiVersion: '2025-08-27.basil',
 })
 
 export async function POST(request: NextRequest) {
@@ -76,15 +76,71 @@ export async function POST(request: NextRequest) {
       console.log('✅ Created new customer:', customerId)
     }
 
-    const { items, customerInfo, clientTotal } = await request.json()
+    const requestBody = await request.json()
+    console.log('📥 Request body received:', JSON.stringify(requestBody, null, 2))
+    
+    const { items, customerInfo, clientTotal } = requestBody
+
+    // Validate required data
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      console.error('❌ Invalid or empty items array:', items)
+      console.error('❌ Full request body:', requestBody)
+      return NextResponse.json({ error: 'Invalid cart items' }, { status: 400 })
+    }
+
+    if (!customerInfo) {
+      console.error('❌ Missing customer info:', customerInfo)
+      return NextResponse.json({ error: 'Customer information required' }, { status: 400 })
+    }
+
+    // Validate cart items structure - handle both flat and nested structures
+    const invalidItems = items.filter((item: any) => {
+      if (!item || typeof item.quantity !== 'number') return true
+      
+      // Check if it's a flat structure (direct properties)
+      if (item.id !== undefined && item.name !== undefined && item.price !== undefined) {
+        return typeof item.price !== 'number'
+      }
+      
+      // Check if it's a nested structure (product object)
+      if (item.product) {
+        return !item.product.id || !item.product.name || typeof item.product.price !== 'number'
+      }
+      
+      return true
+    })
+    
+    if (invalidItems.length > 0) {
+      console.error('❌ Invalid cart item structure:', invalidItems)
+      return NextResponse.json({ error: 'Invalid cart item structure' }, { status: 400 })
+    }
+    
+    console.log('✅ Cart validation passed:', {
+      itemCount: items.length,
+      items: items.map((item: any) => ({
+        id: item.product?.id || item.id,
+        name: item.product?.name || item.name,
+        price: item.product?.price || item.price,
+        quantity: item.quantity
+      }))
+    })
 
     // Calculate total amount with test product logic - MUST MATCH CLIENT-SIDE CALCULATION
     const testProductIds = [5] // TEST PRODUCT ID
     
-    // Check cart composition
-    const hasOnlyTestProducts = items.every((item: any) => testProductIds.includes(item.product.id))
-    const hasTestProducts = items.some((item: any) => testProductIds.includes(item.product.id))
-    const hasRegularProducts = items.some((item: any) => !testProductIds.includes(item.product.id))
+    // Check cart composition - handle both flat and nested structures
+    const hasOnlyTestProducts = items.every((item: any) => {
+      const productId = item.product?.id || item.id
+      return item && productId && testProductIds.includes(productId)
+    })
+    const hasTestProducts = items.some((item: any) => {
+      const productId = item.product?.id || item.id
+      return item && productId && testProductIds.includes(productId)
+    })
+    const hasRegularProducts = items.some((item: any) => {
+      const productId = item.product?.id || item.id
+      return item && productId && !testProductIds.includes(productId)
+    })
     
     let subtotal = 0
     let shipping = 0
@@ -93,19 +149,50 @@ export async function POST(request: NextRequest) {
     
     if (hasOnlyTestProducts) {
       // Test products only - charge original price but no shipping/tax
-      subtotal = items.reduce((sum: number, item: any) => sum + (item.product.price * item.quantity), 0)
+      subtotal = items.reduce((sum: number, item: any) => {
+        const price = item.product?.price || item.price
+        const quantity = item.quantity
+        
+        if (!item || typeof price !== 'number' || typeof quantity !== 'number') {
+          console.error('❌ Invalid item structure:', item)
+          return sum
+        }
+        return sum + (price * quantity)
+      }, 0)
       shipping = 0
       tax = 0
       total = subtotal + shipping + tax
     } else if (hasTestProducts && hasRegularProducts) {
       // Mixed cart - test products: original price, no tax; regular products: normal pricing
       const testItemsTotal = items
-        .filter((item: any) => testProductIds.includes(item.product.id))
-        .reduce((sum: number, item: any) => sum + (item.product.price * item.quantity), 0)
+        .filter((item: any) => {
+          const productId = item.product?.id || item.id
+          return item && productId && testProductIds.includes(productId)
+        })
+        .reduce((sum: number, item: any) => {
+          const price = item.product?.price || item.price
+          const quantity = item.quantity
+          
+          if (!item || typeof price !== 'number' || typeof quantity !== 'number') {
+            return sum
+          }
+          return sum + (price * quantity)
+        }, 0)
       
       const regularItemsTotal = items
-        .filter((item: any) => !testProductIds.includes(item.product.id))
-        .reduce((sum: number, item: any) => sum + (item.product.price * item.quantity), 0)
+        .filter((item: any) => {
+          const productId = item.product?.id || item.id
+          return item && productId && !testProductIds.includes(productId)
+        })
+        .reduce((sum: number, item: any) => {
+          const price = item.product?.price || item.price
+          const quantity = item.quantity
+          
+          if (!item || typeof price !== 'number' || typeof quantity !== 'number') {
+            return sum
+          }
+          return sum + (price * quantity)
+        }, 0)
       
       subtotal = testItemsTotal + regularItemsTotal
       shipping = 0
@@ -113,7 +200,16 @@ export async function POST(request: NextRequest) {
       total = subtotal + shipping + tax
     } else {
       // Regular products only - normal pricing
-      subtotal = items.reduce((sum: number, item: any) => sum + (item.product.price * item.quantity), 0)
+      subtotal = items.reduce((sum: number, item: any) => {
+        const price = item.product?.price || item.price
+        const quantity = item.quantity
+        
+        if (!item || typeof price !== 'number' || typeof quantity !== 'number') {
+          console.error('❌ Invalid item structure:', item)
+          return sum
+        }
+        return sum + (price * quantity)
+      }, 0)
       shipping = 0
       tax = subtotal * 0.08
       total = subtotal + shipping + tax
@@ -166,13 +262,20 @@ export async function POST(request: NextRequest) {
         discount_amount: 0, // No discount applied
         total: total,
         status: 'pending_payment',
-        items: items.map((item: any) => ({
-          product_id: item.product.id,
-          product_name: item.product.name,
-          quantity: item.quantity,
-          price: item.product.price,
-          total: item.product.price * item.quantity
-        }))
+        items: items.map((item: any) => {
+          const productId = item.product?.id || item.id
+          const productName = item.product?.name || item.name
+          const price = item.product?.price || item.price
+          const quantity = item.quantity
+          
+          return {
+            product_id: productId,
+            product_name: productName,
+            quantity: quantity,
+            price: price,
+            total: price * quantity
+          }
+        })
       })
       .select()
       .single()
@@ -212,8 +315,15 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    console.log('✅ Payment intent created successfully:', {
+      paymentIntentId: paymentIntent.id,
+      clientSecret: paymentIntent.client_secret ? 'Present' : 'Missing',
+      amount: paymentIntent.amount,
+      status: paymentIntent.status
+    })
+
     return NextResponse.json({
-      clientSecret: paymentIntent.client_secret,
+      client_secret: paymentIntent.client_secret,
       orderId: order.id
     })
 
