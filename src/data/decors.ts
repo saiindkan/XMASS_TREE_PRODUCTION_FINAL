@@ -53,11 +53,11 @@ interface ColorOption {
       },
       {
           id: generateId(3, 0),
-          name: "Classic Pine Christmas Wreath",
+          name: "Plain Christmas Green Wreath",
           category: "Wreaths",
-          material: "Artificial Pine, Berries, Pinecones",
-          price: 39.00,
-          description: "A traditional green wreath adorned with realistic pine needles, red berries, and natural pinecones. Perfect for doors, mantels, or windows.",
+          material: "Artificial Pine",
+          price: 25.00,
+          description: "A simple and elegant plain green wreath made from artificial pine. Clean, classic design perfect for any holiday decor style.",
           defaultColor: "Green",
           colorOptions: [
               {
