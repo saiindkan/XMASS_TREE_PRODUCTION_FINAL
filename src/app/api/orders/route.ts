@@ -130,13 +130,15 @@ export async function POST(request: NextRequest) {
     const { data: billingAddress, error: addressError } = await supabaseAdmin
       .from('customer_addresses')
       .insert({
-        user_id: dbUser.id,
+        customer_id: customer.id, // Add customer_id
         order_id: null, // Will be set after order creation
         address_type: 'billing',
         first_name: billingInfo.firstName,
         last_name: billingInfo.lastName,
         company: billingInfo.company || null,
+        address_line1: billingInfo.address,
         address_line_1: billingInfo.address,
+        address_line2: billingInfo.addressLine2 || null,
         address_line_2: billingInfo.addressLine2 || null,
         city: billingInfo.city,
         state: billingInfo.state,
@@ -164,7 +166,20 @@ export async function POST(request: NextRequest) {
       user_id: dbUser.id,
       customer_id: customer.id, // Link to the customer record
       order_number: orderNumber, // Add the generated order number
-      billing_address_id: billingAddress.id, // Link to the billing address
+      customer_email: billingInfo.email, // Add customer email
+      customer_name: `${billingInfo.firstName} ${billingInfo.lastName}`, // Add customer name
+      customer_phone: billingInfo.phone, // Add customer phone
+      billing_address: {
+        street: {
+          line1: billingInfo.address,
+          line2: billingInfo.addressLine2 || null,
+          city: billingInfo.city,
+          state: billingInfo.state,
+          postal_code: billingInfo.zipCode,
+          country: 'US'
+        },
+        country: 'US'
+      },
       items: items.map((item: any) => ({
         id: item.id,
         name: item.name,

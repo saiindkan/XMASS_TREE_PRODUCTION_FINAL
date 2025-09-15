@@ -89,19 +89,10 @@ export async function POST(request: NextRequest) {
           try {
             console.log('📧 Sending order confirmation notifications via webhook')
             
-            // Fetch order details for email notification (removed customer_addresses join due to missing relationship)
+            // Fetch order details for email notification (no join needed since order has customer data)
             const { data: orderForEmail, error: orderEmailError } = await supabaseAdmin
               .from('orders')
-              .select(`
-                *,
-                customers!inner(
-                  first_name,
-                  last_name,
-                  email,
-                  phone,
-                  company
-                )
-              `)
+              .select('*')
               .eq('id', orderId)
               .single()
 
