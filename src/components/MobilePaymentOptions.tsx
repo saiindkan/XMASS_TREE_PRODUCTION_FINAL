@@ -22,6 +22,7 @@ export default function MobilePaymentOptions({
 }: MobilePaymentOptionsProps) {
   const [availableMethods, setAvailableMethods] = useState<string[]>([])
   const [selectedMethod, setSelectedMethod] = useState<string>('')
+  const [isLoading, setIsLoading] = useState(true)
 
   // Detect available payment methods
   useEffect(() => {
@@ -38,38 +39,46 @@ export default function MobilePaymentOptions({
       }
     }
     
-    // Check for Google Pay
-    if (typeof window !== 'undefined' && (window as any).google?.payments?.api) {
-      try {
-        const googlePayClient = new (window as any).google.payments.api.PaymentsClient({
-          environment: process.env.NODE_ENV === 'production' ? 'PRODUCTION' : 'TEST'
-        })
-        
-        googlePayClient.isReadyToPay({
-          allowedPaymentMethods: [{
-            type: 'CARD',
-            parameters: {
-              allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-              allowedCardNetworks: ['AMEX', 'DISCOVER', 'JCB', 'MASTERCARD', 'VISA']
+    // Check for Google Pay with retry mechanism
+    const checkGooglePay = () => {
+      if (typeof window !== 'undefined' && (window as any).google?.payments?.api) {
+        try {
+          const googlePayClient = new (window as any).google.payments.api.PaymentsClient({
+            environment: process.env.NODE_ENV === 'production' ? 'PRODUCTION' : 'TEST'
+          })
+          
+          googlePayClient.isReadyToPay({
+            allowedPaymentMethods: [{
+              type: 'CARD',
+              parameters: {
+                allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                allowedCardNetworks: ['AMEX', 'DISCOVER', 'JCB', 'MASTERCARD', 'VISA']
+              }
+            }]
+          }).then((response: any) => {
+            if (response.result) {
+              if (!methods.includes('google_pay')) {
+                methods.push('google_pay')
+                setAvailableMethods([...methods])
+              }
             }
-          }]
-        }).then((response: any) => {
-          if (response.result) {
-            if (!methods.includes('google_pay')) {
-              methods.push('google_pay')
-              setAvailableMethods([...methods])
-            }
-          }
-        }).catch((error: any) => {
+          }).catch((error: any) => {
+            console.log('Google Pay not available:', error)
+          })
+        } catch (error) {
           console.log('Google Pay not available:', error)
-        })
-      } catch (error) {
-        console.log('Google Pay not available:', error)
+        }
+      } else {
+        // Retry after a short delay if Google Pay API isn't loaded yet
+        setTimeout(checkGooglePay, 1000)
       }
     }
     
-    // Only show Apple Pay and Google Pay - no other methods
-    // Always show both for better user experience
+    // Start checking for Google Pay
+    checkGooglePay()
+    
+    // Always show Apple Pay and Google Pay for better user experience
+    // Users will get proper error messages if the methods aren't actually available
     if (!methods.includes('apple_pay')) {
       methods.push('apple_pay')
     }
@@ -79,6 +88,7 @@ export default function MobilePaymentOptions({
     
     setAvailableMethods(methods)
     setSelectedMethod(methods[0] || 'apple_pay')
+    setIsLoading(false)
   }, [])
 
   const handlePayment = async (method: string) => {
@@ -176,7 +186,7 @@ export default function MobilePaymentOptions({
   const handleGooglePay = async () => {
     // Check if Google Pay API is available
     if (typeof window === 'undefined' || !(window as any).google?.payments?.api) {
-      throw new Error('Google Pay is not available. Please ensure you are using a supported browser.')
+      throw new Error('Google Pay is not available on this device. Please try Apple Pay or use a supported browser.')
     }
 
     // Google Pay implementation
@@ -272,6 +282,19 @@ export default function MobilePaymentOptions({
           color: 'bg-gray-700 text-white hover:bg-gray-800'
         }
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Payment Methods...</h3>
+        </div>
+        <div className="flex justify-center">
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
