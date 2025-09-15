@@ -108,50 +108,24 @@ export async function POST(request: NextRequest) {
             if (orderEmailError || !orderForEmail) {
               console.error('❌ Error fetching order for email:', orderEmailError)
             } else {
-              // Import email functions directly
-              const { generateOrderConfirmationEmail, generateOrderConfirmationText } = await import('@/lib/email-templates')
-              const { sendEmail } = await import('@/lib/email')
-
-              // Transform order data for email template
-              const emailOrderData = {
-                ...orderForEmail,
-                customer_name: `${orderForEmail.customers.first_name} ${orderForEmail.customers.last_name}`,
-                customer_email: orderForEmail.customers.email,
-                customer_phone: orderForEmail.customers.phone,
-                billing_address: orderForEmail.billing_address ? {
-                  street: orderForEmail.billing_address.street || orderForEmail.billing_address.address_line_1 || 'Address not available',
-                  city: orderForEmail.billing_address.city || 'City not available',
-                  state: orderForEmail.billing_address.state || 'State not available',
-                  zip_code: orderForEmail.billing_address.zip_code || orderForEmail.billing_address.postal_code || 'ZIP not available',
-                  country: orderForEmail.billing_address.country || 'US'
-                } : {
-                  street: 'Address not available',
-                  city: 'City not available',
-                  state: 'State not available',
-                  zip_code: 'ZIP not available',
-                  country: 'US'
-                },
-                items: Array.isArray(orderForEmail.items) ? orderForEmail.items.map((item: any) => ({
-                  product_name: item.name,
-                  quantity: item.quantity,
-                  total: item.price * item.quantity
-                })) : []
+              // Send email notification using the dedicated API
+              try {
+                console.log('📧 Sending order confirmation email for order:', orderId)
+                const emailResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL}/api/send-order-notification`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderId: orderId })
+                })
+                
+                if (emailResponse.ok) {
+                  const emailResult = await emailResponse.json()
+                  console.log('✅ Order confirmation email sent:', emailResult.message)
+                } else {
+                  console.error('❌ Failed to send order confirmation email')
+                }
+              } catch (emailError) {
+                console.error('❌ Error sending order confirmation email:', emailError)
               }
-
-              // Generate and send email
-              const emailHtml = generateOrderConfirmationEmail(emailOrderData)
-              const emailText = generateOrderConfirmationText(emailOrderData)
-
-              console.log('📧 Sending order confirmation email to:', emailOrderData.customer_email)
-              
-              const emailResult = await sendEmail({
-                to: emailOrderData.customer_email,
-                subject: '🎄 Order Confirmation - Luxury Christmas Trees & Decor',
-                html: emailHtml,
-                text: emailText
-              })
-
-              console.log('✅ Email sent successfully:', emailResult.messageId)
             }
           } catch (notificationError) {
             console.error('❌ Error sending webhook notifications:', notificationError)

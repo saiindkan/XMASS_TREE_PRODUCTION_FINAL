@@ -18,10 +18,23 @@ async function sendEmailNotification(orderData: any) {
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
       console.log('⚠️ SMTP not configured - email would be sent to:', orderData.customer_email)
       console.log('📧 Email HTML Preview:', emailHtml.substring(0, 500) + '...')
+      console.log('🔧 SMTP Configuration Check:')
+      console.log('  - SMTP_HOST:', process.env.SMTP_HOST ? '✅ Set' : '❌ Missing')
+      console.log('  - SMTP_USER:', process.env.SMTP_USER ? '✅ Set' : '❌ Missing')
+      console.log('  - SMTP_PASS:', process.env.SMTP_PASS ? '✅ Set' : '❌ Missing')
+      console.log('  - SMTP_PORT:', process.env.SMTP_PORT || '587 (default)')
+      console.log('  - SMTP_SECURE:', process.env.SMTP_SECURE || 'false (default)')
       return { 
-        success: true, 
-        message: 'Email prepared but SMTP not configured. Please set up SMTP environment variables.',
-        emailContent: emailHtml.substring(0, 1000)
+        success: false, 
+        message: 'SMTP not configured. Please set up SMTP environment variables.',
+        emailContent: emailHtml.substring(0, 1000),
+        smtpConfig: {
+          host: !!process.env.SMTP_HOST,
+          user: !!process.env.SMTP_USER,
+          pass: !!process.env.SMTP_PASS,
+          port: process.env.SMTP_PORT || '587',
+          secure: process.env.SMTP_SECURE || 'false'
+        }
       }
     }
     
