@@ -26,6 +26,13 @@ export default function MobilePaymentOptions({
 
   // Detect available payment methods
   useEffect(() => {
+    const updateMethods = (newMethods: string[]) => {
+      setAvailableMethods(newMethods)
+      if (newMethods.length > 0 && !selectedMethod) {
+        setSelectedMethod(newMethods[0])
+      }
+    }
+
     const methods: string[] = []
     
     // Check for Apple Pay (iOS Safari)
@@ -33,12 +40,16 @@ export default function MobilePaymentOptions({
       try {
         if ((window as any).ApplePaySession.canMakePayments()) {
           methods.push('apple_pay')
+          console.log('Apple Pay detected and available')
+        } else {
+          console.log('Apple Pay detected but not available')
         }
       } catch (error) {
         console.log('Apple Pay not available:', error)
       }
+    } else {
+      console.log('Apple Pay not supported on this device')
     }
-    
 
     // Check for Google Pay with improved detection
     let retryCount = 0
@@ -62,9 +73,10 @@ export default function MobilePaymentOptions({
           }).then((response: any) => {
             console.log('Google Pay isReadyToPay response:', response)
             if (response.result) {
-              if (!methods.includes('google_pay')) {
-                methods.push('google_pay')
-                setAvailableMethods([...methods])
+              const updatedMethods = [...methods]
+              if (!updatedMethods.includes('google_pay')) {
+                updatedMethods.push('google_pay')
+                updateMethods(updatedMethods)
                 console.log('Google Pay added to available methods')
               }
             } else {
@@ -83,22 +95,22 @@ export default function MobilePaymentOptions({
         setTimeout(checkGooglePay, 2000)
       } else {
         console.log('Google Pay API failed to load after maximum retries')
+        // Update methods even if Google Pay fails
+        updateMethods(methods)
+        setIsLoading(false)
       }
     }
     
     // Start checking for Google Pay
     checkGooglePay()
     
-    // Only show methods that are actually available
-    // Don't force show methods that aren't supported
-    if (methods.length === 0) {
-      // If no mobile payment methods are available, show a fallback message
-      console.log('No mobile payment methods available')
-    }
+    // Set initial methods (Apple Pay if available)
+    updateMethods(methods)
     
-    setAvailableMethods(methods)
-    setSelectedMethod(methods[0] || 'apple_pay')
-    setIsLoading(false)
+    // Set loading to false after a short delay to allow Google Pay detection
+    setTimeout(() => {
+      setIsLoading(false)
+    }, 1000)
   }, [])
 
   const handlePayment = async (method: string) => {
@@ -319,17 +331,20 @@ export default function MobilePaymentOptions({
       <div className="space-y-4">
         <div className="text-center">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Mobile Payment Options</h3>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center justify-center space-x-2 text-yellow-800">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-center space-x-2 text-blue-800">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
-              <span className="font-medium">Mobile payments not available</span>
+              <span className="font-medium">Mobile payments not detected</span>
             </div>
-            <p className="text-sm text-yellow-700 mt-2 text-center">
-              Apple Pay and Google Pay are not supported on this device or browser. 
+            <p className="text-sm text-blue-700 mt-2 text-center">
+              Apple Pay and Google Pay are not available on this device or browser. 
               Please use the credit card payment option below.
             </p>
+            <div className="mt-3 text-xs text-blue-600">
+              <p>Debug info: Check browser console for detection details</p>
+            </div>
           </div>
         </div>
       </div>
