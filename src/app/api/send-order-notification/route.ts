@@ -110,16 +110,21 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📧 Sending email notification for order:', orderId)
+    console.log('📧 Order customer_email:', order.customer_email)
+    console.log('📧 Customers table email:', order.customers?.email)
+    console.log('📧 Customer info email:', order.customer_info?.email)
 
     // Transform order data for email template
+    // Priority: Use order's customer_email first (from payment), then fallback to customers table
     const emailOrderData = {
       ...order,
-      customer_name: order.customers ? 
-        `${order.customers.first_name || ''} ${order.customers.last_name || ''}`.trim() || 
-        (order.customer_info?.name || 'Customer') : 
-        (order.customer_info?.name || 'Customer'),
-      customer_email: order.customers?.email || order.customer_info?.email || 'customer@example.com',
-      customer_phone: order.customers?.phone || order.customer_info?.phone || '',
+      customer_name: order.customer_name || 
+        (order.customers ? 
+          `${order.customers.first_name || ''} ${order.customers.last_name || ''}`.trim() || 
+          (order.customer_info?.name || 'Customer') : 
+          (order.customer_info?.name || 'Customer')),
+      customer_email: order.customer_email || order.customers?.email || order.customer_info?.email || 'customer@example.com',
+      customer_phone: order.customer_phone || order.customers?.phone || order.customer_info?.phone || '',
       billing_address: order.billing_address ? {
         street: order.billing_address.street || order.billing_address.address_line_1 || 'Address not available',
         city: order.billing_address.city || 'City not available',
@@ -134,9 +139,9 @@ export async function POST(request: NextRequest) {
         country: order.customer_info?.address?.country || 'US'
       },
       items: Array.isArray(order.items) ? order.items.map((item: any) => ({
-        product_name: item.name,
+        product_name: item.product_name || item.name,
         quantity: item.quantity,
-        total: item.price * item.quantity
+        total: item.total || (item.price * item.quantity)
       })) : []
     }
 
