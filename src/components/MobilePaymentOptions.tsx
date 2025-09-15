@@ -39,15 +39,16 @@ export default function MobilePaymentOptions({
       }
     }
     
-    // Check for Google Pay with retry mechanism and timeout
+
+    // Check for Google Pay with improved detection
     let retryCount = 0
-    const maxRetries = 5
+    const maxRetries = 3
     
     const checkGooglePay = () => {
       if (typeof window !== 'undefined' && (window as any).google?.payments?.api) {
         try {
           const googlePayClient = new (window as any).google.payments.api.PaymentsClient({
-            environment: process.env.NODE_ENV === 'production' ? 'PRODUCTION' : 'TEST'
+            environment: 'TEST' // Always use TEST for better compatibility
           })
           
           googlePayClient.isReadyToPay({
@@ -59,22 +60,27 @@ export default function MobilePaymentOptions({
               }
             }]
           }).then((response: any) => {
+            console.log('Google Pay isReadyToPay response:', response)
             if (response.result) {
               if (!methods.includes('google_pay')) {
                 methods.push('google_pay')
                 setAvailableMethods([...methods])
+                console.log('Google Pay added to available methods')
               }
+            } else {
+              console.log('Google Pay not ready:', response)
             }
           }).catch((error: any) => {
-            console.log('Google Pay not available:', error)
+            console.log('Google Pay isReadyToPay error:', error)
           })
         } catch (error) {
-          console.log('Google Pay not available:', error)
+          console.log('Google Pay client creation error:', error)
         }
       } else if (retryCount < maxRetries) {
         // Retry after a short delay if Google Pay API isn't loaded yet
         retryCount++
-        setTimeout(checkGooglePay, 1000)
+        console.log(`Retrying Google Pay detection (${retryCount}/${maxRetries})`)
+        setTimeout(checkGooglePay, 2000)
       } else {
         console.log('Google Pay API failed to load after maximum retries')
       }
@@ -190,10 +196,16 @@ export default function MobilePaymentOptions({
   const handleGooglePay = async () => {
     // Check if Google Pay API is available
     if (typeof window === 'undefined' || !(window as any).google?.payments?.api) {
+      console.error('Google Pay API not available:', {
+        window: typeof window,
+        google: !!(window as any).google,
+        payments: !!(window as any).google?.payments,
+        api: !!(window as any).google?.payments?.api
+      })
       throw new Error('Google Pay is not available on this device. Please try Apple Pay or use a supported browser.')
     }
 
-    // Google Pay implementation
+    // Google Pay implementation with improved configuration
     const paymentDataRequest = {
       apiVersion: 2,
       apiVersionMinor: 0,
@@ -204,10 +216,10 @@ export default function MobilePaymentOptions({
           allowedCardNetworks: ['AMEX', 'DISCOVER', 'JCB', 'MASTERCARD', 'VISA']
         },
         tokenizationSpecification: {
-          type: 'PAYMENT_GATEWAY',
+          type: 'DIRECT',
           parameters: {
-            gateway: 'stripe',
-            gatewayMerchantId: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+            protocolVersion: 'ECv2',
+            publicKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
           }
         }
       }],
@@ -224,7 +236,7 @@ export default function MobilePaymentOptions({
 
     try {
       const paymentsClient = new (window as any).google.payments.api.PaymentsClient({
-        environment: process.env.NODE_ENV === 'production' ? 'PRODUCTION' : 'TEST'
+        environment: 'TEST' // Use TEST for better compatibility
       })
 
       const paymentData = await paymentsClient.loadPaymentData(paymentDataRequest)
