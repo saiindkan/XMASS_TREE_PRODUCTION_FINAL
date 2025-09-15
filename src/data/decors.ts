@@ -52,6 +52,57 @@ interface ColorOption {
           ]
       },
       {
+          id: generateId(3, 0),
+          name: "Plain Christmas Green Wreath",
+          category: "Wreaths",
+          material: "Artificial Pine",
+          price: 25.00,
+          description: "A simple and elegant plain green wreath made from artificial pine. Clean, classic design perfect for any holiday decor style.",
+          defaultColor: "Green",
+          colorOptions: [
+              {
+                  name: "Green",
+                  code: "#006400",
+                  images: ["/decor-images/Wreaths/11.jpeg"],
+                  inStock: true
+              }
+          ]
+      },
+      {
+          id: generateId(3, 1),
+          name: "Pine and Berries Wreath",
+          category: "Wreaths",
+          material: "Artificial Pine, Berries",
+          price: 35.00,
+          description: "A beautiful wreath combining lush artificial pine with vibrant red berries. Perfect for adding natural charm to your holiday decor.",
+          defaultColor: "Green",
+          colorOptions: [
+              {
+                  name: "Green",
+                  code: "#2E8B57",
+                  images: ["/decor-images/Wreaths/12.jpg"],
+                  inStock: true
+              }
+          ]
+      },
+      {
+          id: generateId(3, 2),
+          name: "Classic Ribbon Wreath",
+          category: "Wreaths",
+          material: "Artificial Pine, Ribbon",
+          price: 40.00,
+          description: "A classic wreath adorned with elegant ribbon accents. Traditional design with timeless appeal for your holiday decorations.",
+          defaultColor: "Green",
+          colorOptions: [
+              {
+                  name: "Green",
+                  code: "#228B22",
+                  images: ["/decor-images/Wreaths/13.jpg"],
+                  inStock: true
+              }
+          ]
+      },
+      {
           id: generateId(1, 2),
           name: "Santa Face Pillow",
           category: "Pillows",
