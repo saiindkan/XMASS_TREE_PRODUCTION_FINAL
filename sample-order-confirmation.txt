@@ -1,0 +1,27 @@
+🎄 Order Confirmation - Indkan Xmas Trees
+
+Dear John Smith,
+
+Thank you for your order! Your order has been confirmed.
+
+👤 Customer Details:
+Name: John Smith
+Email: john.smith@email.com
+Phone: (555) 123-4567
+
+📋 Order Details:
+Order Number: ORD-2024-001234
+Order Date: 12/15/2024
+Total Amount: $299.99
+
+📦 Order Items:
+- Premium Fraser Fir Christmas Tree (7-8 ft) x1 - $199.99
+- LED Christmas Lights Set (100 bulbs) x2 - $49.99
+- Christmas Tree Stand (Heavy Duty) x1 - $39.99
+
+🚚 Shipping Address:
+John Smith
+123 Main Street
+New York, NY 10001
+
+Thank you for choosing Indkan Xmas Trees!

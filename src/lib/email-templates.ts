@@ -200,14 +200,65 @@ export const emailTemplates = {
   },
 };
 
+// Helper function to safely extract address fields
+function getAddressField(address: any, field: string): string {
+  if (!address) return 'Not available';
+  
+  // If address is a string (shouldn't happen but safety check)
+  if (typeof address === 'string') {
+    return address;
+  }
+  
+  // If address is an object, try different field names
+  if (typeof address === 'object' && address !== null) {
+    switch (field) {
+      case 'street':
+        // Handle nested street object structure
+        if (address.street && typeof address.street === 'object') {
+          return address.street.line1 || address.street.address_line_1 || 'Address not available';
+        }
+        return address.street || address.address_line_1 || address.line1 || 'Address not available';
+      case 'city':
+        // Handle nested street object structure
+        if (address.street && typeof address.street === 'object') {
+          return address.street.city || 'City not available';
+        }
+        return address.city || 'City not available';
+      case 'state':
+        // Handle nested street object structure
+        if (address.street && typeof address.street === 'object') {
+          return address.street.state || 'State not available';
+        }
+        return address.state || 'State not available';
+      case 'zip_code':
+        // Handle nested street object structure
+        if (address.street && typeof address.street === 'object') {
+          return address.street.postal_code || address.street.zip_code || 'ZIP not available';
+        }
+        return address.zip_code || address.postal_code || address.postalCode || 'ZIP not available';
+      case 'country':
+        // Handle nested street object structure
+        if (address.street && typeof address.street === 'object') {
+          return address.street.country || address.country || 'US';
+        }
+        return address.country || 'US';
+      default:
+        return 'Not available';
+    }
+  }
+  
+  return 'Not available';
+}
+
 export function generateOrderConfirmationEmail(orderData: any) {
   // Ensure items is an array and handle undefined values
   const items = Array.isArray(orderData.items) ? orderData.items : []
   
   const itemsList = items.map((item: any) => {
-    const productName = item.product_name || item.name || item.product?.name || 'Product Name Not Available'
-    const quantity = item.quantity || 1
-    const total = item.total || (item.price * quantity) || 0
+    const productName = item.product_name || item.name || item.product?.name || item.title || 'Product Name Not Available'
+    const quantity = item.quantity || item.qty || 1
+    const price = item.price || item.unit_price || 0
+    const total = item.total || item.total_price || (price * quantity) || 0
     
     return `<tr>
       <td style="padding: 16px; border-bottom: 1px solid #e5e7eb; font-size: 14px;">${productName}</td>
@@ -258,29 +309,41 @@ export function generateOrderConfirmationEmail(orderData: any) {
           <!-- Success Message -->
           <div style="text-align: center; margin-bottom: 30px;">
             <div style="background: #dcfce7; border: 2px solid #16a34a; border-radius: 50%; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; position: relative;">
-              <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 32px; line-height: 1;">✅</div>
+              <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; border: 3px solid #16a34a; border-top: none; border-right: none; transform: translate(-50%, -50%) rotate(-45deg);"></div>
             </div>
-            <h2 style="color: #16a34a; margin: 0 0 10px 0; font-size: 28px; font-weight: 600;">Payment Successful!</h2>
+            <h2 style="color: #16a34a; margin: 0 0 10px 0; font-size: 28px; font-weight: 600;">Order Confirmed!</h2>
             <p style="color: #6b7280; margin: 0; font-size: 16px;">Thank you for your order, ${orderData.customer_name || 'Valued Customer'}!</p>
+          </div>
+          
+          <!-- Customer Details -->
+          <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+            <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600; display: flex; align-items: center;">
+              <span style="margin-right: 8px; font-size: 18px;">👤</span>Customer Details
+            </h3>
+            <div style="color: #1f2937; font-size: 16px; line-height: 1.8;">
+              <p style="margin: 0 0 5px 0;"><strong>Name:</strong> ${orderData.customer_name || 'N/A'}</p>
+              <p style="margin: 0 0 5px 0;"><strong>Email:</strong> ${orderData.customer_email || 'N/A'}</p>
+              <p style="margin: 0;"><strong>Phone:</strong> ${orderData.customer_phone || 'N/A'}</p>
+            </div>
           </div>
           
           <!-- Order Summary Card -->
           <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
             <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600; display: flex; align-items: center;">
-              <span style="margin-right: 8px;">📋</span>Order Summary
+              <span style="margin-right: 8px; font-size: 18px;">📋</span>Order Details
             </h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
               <div>
                 <p style="margin: 0 0 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Order Number</p>
-                <p style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace;">${orderData.order_number}</p>
+                <p style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace;">${orderData.order_number || 'N/A'}</p>
               </div>
               <div>
                 <p style="margin: 0 0 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Order Date</p>
-                <p style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 600;">${new Date(orderData.created_at).toLocaleDateString()}</p>
+                <p style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 600;">${orderData.created_at ? new Date(orderData.created_at).toLocaleDateString() : 'N/A'}</p>
               </div>
               <div style="grid-column: 1 / -1;">
                 <p style="margin: 0 0 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Total Amount</p>
-                <p style="margin: 0; color: #16a34a; font-size: 20px; font-weight: 700;">$${orderData.total.toFixed(2)}</p>
+                <p style="margin: 0; color: #16a34a; font-size: 20px; font-weight: 700;">$${orderData.total ? orderData.total.toFixed(2) : '0.00'}</p>
               </div>
             </div>
           </div>
@@ -288,7 +351,7 @@ export function generateOrderConfirmationEmail(orderData: any) {
           <!-- Order Items -->
           <div style="margin-bottom: 25px;">
             <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600; display: flex; align-items: center;">
-              <span style="margin-right: 8px;">🎁</span>Order Items
+              <span style="margin-right: 8px; font-size: 18px;">🎁</span>Order Items
             </h3>
             <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
               <table style="width: 100%; border-collapse: collapse;">
@@ -309,32 +372,15 @@ export function generateOrderConfirmationEmail(orderData: any) {
           <!-- Shipping Information -->
           <div style="background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 1px solid #bbf7d0; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #16a34a;">
             <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600; display: flex; align-items: center;">
-              <span style="margin-right: 8px;">🚚</span>Shipping Information
+              <span style="margin-right: 8px; font-size: 18px;">🚚</span>Shipping Information
             </h3>
             <div style="color: #1f2937; font-size: 16px; line-height: 1.8;">
-              <p style="margin: 0 0 5px 0; font-weight: 600;">${orderData.customer_name}</p>
-              <p style="margin: 0 0 5px 0;">${orderData.billing_address.street}</p>
-              <p style="margin: 0;">${orderData.billing_address.city}, ${orderData.billing_address.state} ${orderData.billing_address.zip_code}</p>
+              <p style="margin: 0 0 5px 0; font-weight: 600;">${orderData.customer_name || 'Customer'}</p>
+              <p style="margin: 0 0 5px 0;">${getAddressField(orderData.billing_address, 'street')}</p>
+              <p style="margin: 0;">${getAddressField(orderData.billing_address, 'city')}, ${getAddressField(orderData.billing_address, 'state')} ${getAddressField(orderData.billing_address, 'zip_code')}</p>
             </div>
           </div>
           
-          <!-- Contact Information -->
-          <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; border-radius: 12px; padding: 25px; margin-bottom: 30px; border-left: 4px solid #3b82f6;">
-            <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600; display: flex; align-items: center;">
-              <span style="margin-right: 8px;">📞</span>Need Help?
-            </h3>
-            <p style="margin: 0 0 10px 0; color: #374151; font-size: 16px;">If you have any questions about your order, please contact us:</p>
-            <div style="color: #1f2937; font-size: 16px; line-height: 1.8;">
-              <p style="margin: 0 0 5px 0;"><strong>Email:</strong> support@christmastreeshop.com</p>
-              <p style="margin: 0;"><strong>Phone:</strong> (555) 123-4567</p>
-            </div>
-          </div>
-          
-          <!-- Thank You Message -->
-          <div style="text-align: center; padding: 25px; background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px; border: 1px solid #f59e0b;">
-            <p style="margin: 0 0 10px 0; color: #92400e; font-size: 18px; font-weight: 600;">Thank you for choosing our Christmas Tree Shop!</p>
-            <p style="margin: 0; color: #92400e; font-size: 16px;">🎅 Happy Holidays! 🎄</p>
-          </div>
           
         </div>
         
@@ -365,9 +411,10 @@ export function generateOrderConfirmationText(orderData: any) {
   const items = Array.isArray(orderData.items) ? orderData.items : []
   
   const itemsText = items.map((item: any) => {
-    const productName = item.product_name || item.name || item.product?.name || 'Product Name Not Available'
-    const quantity = item.quantity || 1
-    const total = item.total || (item.price * quantity) || 0
+    const productName = item.product_name || item.name || item.product?.name || item.title || 'Product Name Not Available'
+    const quantity = item.quantity || item.qty || 1
+    const price = item.price || item.unit_price || 0
+    const total = item.total || item.total_price || (price * quantity) || 0
     return `- ${productName} x${quantity} - $${total.toFixed(2)}`
   }).join('\n')
 
@@ -376,7 +423,12 @@ export function generateOrderConfirmationText(orderData: any) {
 
 Dear ${orderData.customer_name || 'Valued Customer'},
 
-Thank you for your order! Your payment has been processed successfully.
+Thank you for your order! Your order has been confirmed.
+
+👤 Customer Details:
+Name: ${orderData.customer_name || 'N/A'}
+Email: ${orderData.customer_email || 'N/A'}
+Phone: ${orderData.customer_phone || 'N/A'}
 
 📋 Order Details:
 Order Number: ${orderData.order_number || 'N/A'}
@@ -386,15 +438,11 @@ Total Amount: $${orderData.total ? orderData.total.toFixed(2) : '0.00'}
 📦 Order Items:
 ${itemsText || 'No items found'}
 
-🚚 Shipping Information:
+🚚 Shipping Address:
 ${orderData.customer_name || 'N/A'}
-${orderData.billing_address?.street || 'Address not available'}
-${orderData.billing_address?.city || 'City not available'}, ${orderData.billing_address?.state || 'State not available'} ${orderData.billing_address?.zip_code || 'ZIP not available'}
-
-📞 Contact Us:
-If you have any questions, please contact us at support@indkanworldwideexim.com
+${getAddressField(orderData.billing_address, 'street')}
+${getAddressField(orderData.billing_address, 'city')}, ${getAddressField(orderData.billing_address, 'state')} ${getAddressField(orderData.billing_address, 'zip_code')}
 
 Thank you for choosing Indkan Xmas Trees!
-🎅 Happy Holidays!
   `.trim()
 }

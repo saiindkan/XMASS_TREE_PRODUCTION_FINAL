@@ -88,30 +88,80 @@ export async function POST(request: NextRequest) {
 
     // Transform order data for email template
     // Use order's customer data directly (no need for customers table join)
+    
+    // Debug: Log the actual order structure
+    console.log('🔍 Order billing_address structure:', JSON.stringify(order.billing_address, null, 2));
+    console.log('🔍 Order customer_info structure:', JSON.stringify(order.customer_info, null, 2));
+    
+    // Handle billing address - check if it's a JSON object or individual fields
+    let billingAddress = {
+      street: 'Address not available',
+      city: 'City not available', 
+      state: 'State not available',
+      zip_code: 'ZIP not available',
+      country: 'US'
+    };
+    
+    if (order.billing_address) {
+      // If billing_address is a JSON object
+      if (typeof order.billing_address === 'object' && order.billing_address !== null) {
+        // Check if street field contains the actual address data
+        if (order.billing_address.street && typeof order.billing_address.street === 'object') {
+          // Street field contains the address object
+          billingAddress = {
+            street: order.billing_address.street.line1 || order.billing_address.street.address_line_1 || 'Address not available',
+            city: order.billing_address.street.city || 'City not available',
+            state: order.billing_address.street.state || 'State not available',
+            zip_code: order.billing_address.street.postal_code || order.billing_address.street.zip_code || 'ZIP not available',
+            country: order.billing_address.street.country || order.billing_address.country || 'US'
+          };
+        } else {
+          // Normal address structure
+          billingAddress = {
+            street: order.billing_address.address_line_1 || order.billing_address.street || order.billing_address.line1 || 'Address not available',
+            city: order.billing_address.city || 'City not available',
+            state: order.billing_address.state || 'State not available', 
+            zip_code: order.billing_address.postal_code || order.billing_address.zip_code || order.billing_address.postalCode || 'ZIP not available',
+            country: order.billing_address.country || 'US'
+          };
+        }
+      }
+    } else if (order.customer_info?.address) {
+      // Fallback to customer_info address
+      billingAddress = {
+        street: order.customer_info.address.line1 || order.customer_info.address.street || 'Address not available',
+        city: order.customer_info.address.city || 'City not available',
+        state: order.customer_info.address.state || 'State not available',
+        zip_code: order.customer_info.address.postal_code || order.customer_info.address.zip_code || 'ZIP not available',
+        country: order.customer_info.address.country || 'US'
+      };
+    }
+    
+    // Also check for individual address fields in the order
+    if (order.billing_address_line1 || order.billing_city) {
+      billingAddress = {
+        street: order.billing_address_line1 || 'Address not available',
+        city: order.billing_city || 'City not available',
+        state: order.billing_state || 'State not available',
+        zip_code: order.billing_postal_code || 'ZIP not available',
+        country: order.billing_country || 'US'
+      };
+    }
+    
     const emailOrderData = {
       ...order,
       customer_name: order.customer_name || order.customer_info?.name || 'Customer',
       customer_email: order.customer_email || order.customer_info?.email || 'customer@example.com',
       customer_phone: order.customer_phone || order.customer_info?.phone || '',
-      billing_address: order.billing_address ? {
-        street: order.billing_address.street || order.billing_address.address_line_1 || 'Address not available',
-        city: order.billing_address.city || 'City not available',
-        state: order.billing_address.state || 'State not available',
-        zip_code: order.billing_address.zip_code || order.billing_address.postal_code || 'ZIP not available',
-        country: order.billing_address.country || 'US'
-      } : {
-        street: order.customer_info?.address?.line1 || 'Address not available',
-        city: order.customer_info?.address?.city || 'City not available',
-        state: order.customer_info?.address?.state || 'State not available',
-        zip_code: order.customer_info?.address?.postal_code || 'ZIP not available',
-        country: order.customer_info?.address?.country || 'US'
-      },
+      billing_address: billingAddress,
       items: Array.isArray(order.items) ? order.items.map((item: any) => ({
         product_name: item.product_name || item.name,
         quantity: item.quantity,
         total: item.total || (item.price * item.quantity)
       })) : []
     }
+    
+    console.log('📧 Final email order data billing_address:', JSON.stringify(emailOrderData.billing_address, null, 2));
 
     // Send email notification
     const emailResult = await sendEmailNotification(emailOrderData)

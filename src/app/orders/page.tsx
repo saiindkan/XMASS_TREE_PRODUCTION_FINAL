@@ -16,7 +16,9 @@ import {
   Clock,
   AlertCircle,
   Apple,
-  Smartphone
+  Smartphone,
+  Mail,
+  Loader2
 } from "lucide-react";
 
 interface OrderItem {
@@ -127,6 +129,8 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
+  const [emailSending, setEmailSending] = useState<string | null>(null);
+  const [emailStatus, setEmailStatus] = useState<{[key: string]: 'success' | 'error' | null}>({});
 
   // Get unique payment methods for filter options
   const getUniquePaymentMethods = () => {
@@ -228,6 +232,48 @@ export default function OrdersPage() {
 
   const getStatusLabel = (status: string) => {
     return status.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const handleResendEmail = async (orderId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent order selection when clicking email button
+    
+    setEmailSending(orderId);
+    setEmailStatus(prev => ({ ...prev, [orderId]: null }));
+    
+    try {
+      const response = await fetch('/api/send-order-notification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setEmailStatus(prev => ({ ...prev, [orderId]: 'success' }));
+        // Clear success status after 3 seconds
+        setTimeout(() => {
+          setEmailStatus(prev => ({ ...prev, [orderId]: null }));
+        }, 3000);
+      } else {
+        setEmailStatus(prev => ({ ...prev, [orderId]: 'error' }));
+        // Clear error status after 5 seconds
+        setTimeout(() => {
+          setEmailStatus(prev => ({ ...prev, [orderId]: null }));
+        }, 5000);
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      setEmailStatus(prev => ({ ...prev, [orderId]: 'error' }));
+      // Clear error status after 5 seconds
+      setTimeout(() => {
+        setEmailStatus(prev => ({ ...prev, [orderId]: null }));
+      }, 5000);
+    } finally {
+      setEmailSending(null);
+    }
   };
 
   if (status === "loading" || isLoading) {
@@ -419,9 +465,49 @@ export default function OrdersPage() {
                             {order.currency.toUpperCase()}
                           </div>
                           
-                          {/* Checkout Button for Pending Payments */}
-                          {(order.payment_status !== 'succeeded' && order.status !== 'paid') && (
-                            <div className="mt-2">
+                          {/* Action Buttons */}
+                          <div className="mt-2 space-y-2">
+                            {/* Email Resend Button */}
+                            {(order.payment_status === 'succeeded' || order.status === 'paid') && (
+                              <button
+                                onClick={(e) => handleResendEmail(order.id, e)}
+                                disabled={emailSending === order.id}
+                                className={`inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md transition-colors duration-200 ${
+                                  emailSending === order.id
+                                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                                    : emailStatus[order.id] === 'success'
+                                    ? 'bg-green-100 text-green-800 border-green-200'
+                                    : emailStatus[order.id] === 'error'
+                                    ? 'bg-red-100 text-red-800 border-red-200'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                                }`}
+                              >
+                                {emailSending === order.id ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    Sending...
+                                  </>
+                                ) : emailStatus[order.id] === 'success' ? (
+                                  <>
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Sent!
+                                  </>
+                                ) : emailStatus[order.id] === 'error' ? (
+                                  <>
+                                    <AlertCircle className="w-3 h-3 mr-1" />
+                                    Failed
+                                  </>
+                                ) : (
+                                  <>
+                                    <Mail className="w-3 h-3 mr-1" />
+                                    Resend Email
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            
+                            {/* Checkout Button for Pending Payments */}
+                            {(order.payment_status !== 'succeeded' && order.status !== 'paid') && (
                               <Link
                                 href={`/checkout?orderId=${order.id}&completePayment=true`}
                                 className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
@@ -431,8 +517,8 @@ export default function OrdersPage() {
                                 </svg>
                                 Complete Payment
                               </Link>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -751,28 +837,75 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    {/* Payment Status Info */}
-                    {selectedOrder.payment_status !== 'succeeded' && selectedOrder.status !== 'paid' && (
-                      <div className="text-center">
-                        <p className="text-sm text-gray-600 mb-2">
-                          Payment Required
-                        </p>
-                        <p className="text-xs text-gray-500 mb-4">
-                          Complete your payment to confirm your order
-                        </p>
-                        
-                        {/* Checkout Button for Pending Payments */}
-                        <Link
-                          href={`/checkout?orderId=${selectedOrder.id}&completePayment=true`}
-                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
-                        >
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
-                          </svg>
-                          Complete Payment
-                        </Link>
-                      </div>
-                    )}
+                    {/* Action Buttons */}
+                    <div className="text-center space-y-3">
+                      {/* Email Resend Button for Paid Orders */}
+                      {(selectedOrder.payment_status === 'succeeded' || selectedOrder.status === 'paid') && (
+                        <div>
+                          <button
+                            onClick={(e) => handleResendEmail(selectedOrder.id, e)}
+                            disabled={emailSending === selectedOrder.id}
+                            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md transition-colors duration-200 ${
+                              emailSending === selectedOrder.id
+                                ? 'bg-gray-400 text-white cursor-not-allowed'
+                                : emailStatus[selectedOrder.id] === 'success'
+                                ? 'bg-green-100 text-green-800 border-green-200'
+                                : emailStatus[selectedOrder.id] === 'error'
+                                ? 'bg-red-100 text-red-800 border-red-200'
+                                : 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                            }`}
+                          >
+                            {emailSending === selectedOrder.id ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Sending Email...
+                              </>
+                            ) : emailStatus[selectedOrder.id] === 'success' ? (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Email Sent Successfully!
+                              </>
+                            ) : emailStatus[selectedOrder.id] === 'error' ? (
+                              <>
+                                <AlertCircle className="w-4 h-4 mr-2" />
+                                Failed to Send Email
+                              </>
+                            ) : (
+                              <>
+                                <Mail className="w-4 h-4 mr-2" />
+                                Resend Order Confirmation
+                              </>
+                            )}
+                          </button>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Send order confirmation email to {selectedOrder.customer.email}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Payment Status Info for Pending Orders */}
+                      {selectedOrder.payment_status !== 'succeeded' && selectedOrder.status !== 'paid' && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-2">
+                            Payment Required
+                          </p>
+                          <p className="text-xs text-gray-500 mb-4">
+                            Complete your payment to confirm your order
+                          </p>
+                          
+                          {/* Checkout Button for Pending Payments */}
+                          <Link
+                            href={`/checkout?orderId=${selectedOrder.id}&completePayment=true`}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                          >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                            </svg>
+                            Complete Payment
+                          </Link>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : (
