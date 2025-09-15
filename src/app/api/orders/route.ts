@@ -388,20 +388,37 @@ export async function GET(request: NextRequest) {
         estimated_delivery_date: order.estimated_delivery_date,
         // Transform JSONB items to expected order_items format
         order_items: Array.isArray(order.items) ? order.items.map((item: any) => ({
-          id: item.id,
-          product_name: item.name,
+          id: item.id || item.product_id,
+          product_name: item.product_name || item.name,
           quantity: item.quantity,
-          total_price: item.price * item.quantity,
-          product_image: item.image
+          total_price: item.total || (item.price * item.quantity),
+          product_image: item.image || item.product_image
         })) : [],
         customer: {
-          firstName: order.customers?.first_name || order.customer_info?.name?.split(' ')[0] || 'Customer',
-          lastName: order.customers?.last_name || order.customer_info?.name?.split(' ')[1] || 'User',
-          email: order.customers?.email || order.customer_info?.email || 'customer@example.com',
-          phone: order.customers?.phone || order.customer_info?.phone || '',
+          firstName: order.customer_name?.split(' ')[0] || 
+                     order.customers?.first_name || 
+                     order.customer_info?.name?.split(' ')[0] || 
+                     order.customer_info?.firstName || 
+                     'Customer',
+          lastName: order.customer_name?.split(' ').slice(1).join(' ') || 
+                    order.customers?.last_name || 
+                    order.customer_info?.name?.split(' ').slice(1).join(' ') || 
+                    order.customer_info?.lastName || 
+                    'User',
+          email: order.customer_email || order.customers?.email || order.customer_info?.email || 'customer@example.com',
+          phone: order.customer_phone || order.customers?.phone || order.customer_info?.phone || '',
           company: order.customers?.company || order.customer_info?.company || ''
         },
-        billing_address: null, // Will be added later when we fix the relationship
+        billing_address: order.billing_address ? {
+          address_line_1: order.billing_address.street?.line1 || order.billing_address.address_line_1 || 'Address not available',
+          address_line_2: order.billing_address.street?.line2 || order.billing_address.address_line_2 || null,
+          city: order.billing_address.street?.city || order.billing_address.city || 'City not available',
+          state: order.billing_address.street?.state || order.billing_address.state || 'State not available',
+          postal_code: order.billing_address.street?.postal_code || order.billing_address.zip_code || order.billing_address.postal_code || 'ZIP not available',
+          country: order.billing_address.street?.country || order.billing_address.country || 'US',
+          phone: order.customer_phone || order.billing_address.phone || null,
+          email: order.customer_email || order.billing_address.email || null
+        } : null,
         shipping_address: null, // Will be added later when we fix the relationship
         payment: null, // Payment data not available due to missing relationship
         // Add payment status for easier access

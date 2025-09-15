@@ -44,6 +44,9 @@ export async function POST(request: NextRequest) {
     const orderData = {
       order_number: orderNumber,
       user_id: customerInfo.user_id || null,
+      customer_email: customerInfo.email,
+      customer_name: customerInfo.name,
+      customer_phone: customerInfo.phone || '',
       customer_info: customerInfo,
       items: customerInfo.items || [],
       subtotal: total * 0.9, // Approximate subtotal (90% of total)
