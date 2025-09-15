@@ -52,6 +52,57 @@ interface ColorOption {
           ]
       },
       {
+          id: generateId(3, 0),
+          name: "Classic Pine Christmas Wreath",
+          category: "Wreaths",
+          material: "Artificial Pine, Berries, Pinecones",
+          price: 39.00,
+          description: "A traditional green wreath adorned with realistic pine needles, red berries, and natural pinecones. Perfect for doors, mantels, or windows.",
+          defaultColor: "Green",
+          colorOptions: [
+              {
+                  name: "Green",
+                  code: "#006400",
+                  images: ["/decor-images/40.jpg"],
+                  inStock: true
+              }
+          ]
+      },
+      {
+          id: generateId(3, 1),
+          name: "Frosted Winter Berry Wreath",
+          category: "Wreaths",
+          material: "Frosted Greenery, Berries",
+          price: 45.00,
+          description: "A frosted wreath featuring snowy greenery and clusters of red berries for a cozy winter look. Ideal for indoor or covered outdoor display.",
+          defaultColor: "Green",
+          colorOptions: [
+              {
+                  name: "Green Frosted",
+                  code: "#2E8B57",
+                  images: ["/decor-images/41.jpg"],
+                  inStock: true
+              }
+          ]
+      },
+      {
+          id: generateId(3, 2),
+          name: "Deluxe Ribbon & Pinecone Wreath",
+          category: "Wreaths",
+          material: "Artificial Pine, Ribbon, Pinecones",
+          price: 55.00,
+          description: "A premium wreath accented with luxe ribbon, natural-look pinecones, and rich seasonal foliage. A beautiful statement piece for your entrance.",
+          defaultColor: "Green",
+          colorOptions: [
+              {
+                  name: "Green with Ribbon",
+                  code: "#228B22",
+                  images: ["/decor-images/42.jpg"],
+                  inStock: true
+              }
+          ]
+      },
+      {
           id: generateId(1, 2),
           name: "Santa Face Pillow",
           category: "Pillows",
