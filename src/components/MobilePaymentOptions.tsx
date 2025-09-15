@@ -24,11 +24,11 @@ export default function MobilePaymentOptions({
   const [selectedMethod, setSelectedMethod] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
 
-  // Only show card payment - no mobile payments
+  // No payment methods available
   useEffect(() => {
-    const methods = ['card']
+    const methods: string[] = []
     setAvailableMethods(methods)
-    setSelectedMethod('card')
+    setSelectedMethod('')
     setIsLoading(false)
   }, [])
 
@@ -93,43 +93,19 @@ export default function MobilePaymentOptions({
   return (
     <div className="space-y-4">
       <div className="text-center">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Method</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Methods</h3>
       </div>
 
-      <div className="flex justify-center">
-        {availableMethods.map((method) => {
-          const info = getPaymentMethodInfo(method)
-          const isSelected = selectedMethod === method
-          
-          return (
-            <button
-              key={method}
-              onClick={() => handlePayment(method)}
-              disabled={isProcessing}
-              className={`
-                relative flex flex-col items-center justify-center p-8 rounded-xl border-2 transition-all duration-200 min-w-[200px]
-                ${isSelected 
-                  ? 'border-emerald-500 bg-emerald-50 shadow-lg scale-105' 
-                  : 'border-gray-200 hover:border-gray-300 hover:shadow-md hover:scale-105'
-                }
-                ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                ${info.color}
-              `}
-              title={info.name}
-            >
-              <div className="flex items-center justify-center mb-4">
-                {info.icon}
-              </div>
-              <span className="text-lg font-semibold">{info.name}</span>
-                
-              {isSelected && isProcessing && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 rounded-xl">
-                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              )}
-            </button>
-          )
-        })}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+        <div className="flex items-center justify-center space-x-3 text-gray-600">
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <span className="font-medium">No payment methods available</span>
+        </div>
+        <p className="text-sm text-gray-500 mt-3 text-center">
+          Payment options are currently unavailable. Please contact support for assistance.
+        </p>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
