@@ -63,41 +63,41 @@ interface ColorOption {
               {
                   name: "Green",
                   code: "#006400",
-                  images: ["/decor-images/11.jpg"],
+                  images: ["/decor-images/Wreaths/11.jpeg"],
                   inStock: true
               }
           ]
       },
       {
           id: generateId(3, 1),
-          name: "Frosted Winter Berry Wreath",
+          name: "Pine and Berries Wreath",
           category: "Wreaths",
-          material: "Frosted Greenery, Berries",
-          price: 45.00,
-          description: "A frosted wreath featuring snowy greenery and clusters of red berries for a cozy winter look. Ideal for indoor or covered outdoor display.",
+          material: "Artificial Pine, Berries",
+          price: 35.00,
+          description: "A beautiful wreath combining lush artificial pine with vibrant red berries. Perfect for adding natural charm to your holiday decor.",
           defaultColor: "Green",
           colorOptions: [
               {
-                  name: "Green Frosted",
+                  name: "Green",
                   code: "#2E8B57",
-                  images: ["/decor-images/41.jpg"],
+                  images: ["/decor-images/Wreaths/12.jpg"],
                   inStock: true
               }
           ]
       },
       {
           id: generateId(3, 2),
-          name: "Deluxe Ribbon & Pinecone Wreath",
+          name: "Classic Ribbon Wreath",
           category: "Wreaths",
-          material: "Artificial Pine, Ribbon, Pinecones",
-          price: 55.00,
-          description: "A premium wreath accented with luxe ribbon, natural-look pinecones, and rich seasonal foliage. A beautiful statement piece for your entrance.",
+          material: "Artificial Pine, Ribbon",
+          price: 40.00,
+          description: "A classic wreath adorned with elegant ribbon accents. Traditional design with timeless appeal for your holiday decorations.",
           defaultColor: "Green",
           colorOptions: [
               {
-                  name: "Green with Ribbon",
+                  name: "Green",
                   code: "#228B22",
-                  images: ["/decor-images/42.jpg"],
+                  images: ["/decor-images/Wreaths/13.jpg"],
                   inStock: true
               }
           ]
