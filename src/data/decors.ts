@@ -63,7 +63,7 @@ interface ColorOption {
               {
                   name: "Green",
                   code: "#006400",
-                  images: ["/decor-images/40.jpg"],
+                  images: ["/decor-images/11.jpg"],
                   inStock: true
               }
           ]
