@@ -228,46 +228,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const qrPaymentId = searchParams.get('qr_payment_id');
     const paymentIntentId = searchParams.get('id');
-    
-    // If querying by QR payment ID, we don't need authentication
-    if (qrPaymentId) {
-      console.log('🔍 Querying order by QR payment ID:', qrPaymentId);
-      
-      const supabaseAdmin = createServerSupabaseAdminClient();
-      
-      // Find order by QR payment reference
-      const { data: order, error: orderError } = await supabaseAdmin
-        .from('orders')
-        .select(`
-          *,
-          customers(
-            first_name,
-            last_name,
-            email,
-            phone,
-            company
-          )
-        `)
-        .eq('payment_reference', qrPaymentId)
-        .single();
-      
-      if (orderError || !order) {
-        console.error('❌ Order not found for QR payment ID:', qrPaymentId, orderError);
-        return NextResponse.json(
-          { error: 'Order not found' },
-          { status: 404 }
-        );
-      }
-      
-      console.log('✅ Found order for QR payment:', order.id);
-      
-      return NextResponse.json({
-        success: true,
-        order: order
-      });
-    }
     
     // If querying by payment intent ID, we don't need authentication
     if (paymentIntentId) {
@@ -405,42 +366,6 @@ export async function GET(request: NextRequest) {
       if (order.payment_method) {
         paymentMethod = order.payment_method;
         
-        // Enhance QR payment method identification
-        if (order.payment_method === 'qr_payment' || order.payment_method === 'stripe_qr') {
-          // Try to get more specific payment method from QR payment record
-          try {
-            const qrPaymentResult = await supabaseAdmin
-              .from('qr_payments')
-              .select('payment_method, notes')
-              .eq('id', order.payment_reference || '')
-              .single();
-            
-            const qrPayment = qrPaymentResult.data;
-            
-            if (qrPayment?.payment_method) {
-              // Map specific payment methods to user-friendly names
-              switch (qrPayment.payment_method) {
-                case 'apple_pay':
-                  paymentMethod = 'Apple Pay';
-                  break;
-                case 'google_pay':
-                  paymentMethod = 'Google Pay';
-                  break;
-                case 'test_payment':
-                  paymentMethod = 'QR Payment'; // Changed from 'Test Payment' to 'QR Payment'
-                  break;
-                case 'card':
-                  paymentMethod = 'Card (QR)';
-                  break;
-                default:
-                  paymentMethod = 'QR Payment';
-              }
-            }
-          } catch (error) {
-            // If QR payment lookup fails, keep the original method
-            console.log('Could not fetch QR payment details:', error);
-          }
-        }
       } else if (order.payment_intent_id) {
         paymentMethod = 'Card Payment'; // More descriptive for card payments
       }

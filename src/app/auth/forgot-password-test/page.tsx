@@ -82,7 +82,7 @@ export default function ForgotPasswordTest() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email address
+              Email address <span className="text-red-500">*</span>
             </label>
             <input
               id="email"

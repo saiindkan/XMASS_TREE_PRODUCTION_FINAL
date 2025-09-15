@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react'
 import { useCart } from "@/context/CartContext";
 import { useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CreditCard, Shield, Truck, Lock, CheckCircle, AlertCircle, User, Smartphone, QrCode } from 'lucide-react'
+import { ArrowLeft, CreditCard, Shield, Truck, Lock, CheckCircle, AlertCircle, User, Smartphone } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import QRCode from 'qrcode'
-import { getLocalhostConfig, getQRPaymentInstructions, generateQRCodeData } from '@/lib/localhost-handler'
+import MobilePaymentOptions from '@/components/MobilePaymentOptions'
 
 // Initialize Stripe
 const stripePromise = loadStripe(
@@ -163,7 +162,7 @@ const CustomerInfoStep = ({
             {/* Cardholder Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name *
+                Full Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -183,7 +182,7 @@ const CustomerInfoStep = ({
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address *
+                Email Address <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -203,7 +202,7 @@ const CustomerInfoStep = ({
             {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number *
+                Phone Number <span className="text-red-500">*</span>
               </label>
               <input
                 type="tel"
@@ -231,7 +230,7 @@ const CustomerInfoStep = ({
             {/* Street Address */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Street Address *
+                Street Address <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -251,7 +250,7 @@ const CustomerInfoStep = ({
             {/* City */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                City *
+                City <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -271,9 +270,9 @@ const CustomerInfoStep = ({
             {/* State and ZIP */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  State *
-                </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                State <span className="text-red-500">*</span>
+              </label>
                 <input
                   type="text"
                   value={formData.state}
@@ -289,9 +288,9 @@ const CustomerInfoStep = ({
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ZIP Code *
-                </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ZIP Code <span className="text-red-500">*</span>
+              </label>
                 <input
                   type="text"
                   value={formData.zipCode}
@@ -343,72 +342,40 @@ const PaymentMethodStep = ({
   onComplete: () => void
   cart: any[]
 }) => {
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'qr'>('card')
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'mobile' | 'card'>('mobile')
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState('')
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('')
-  const [qrPaymentId, setQrPaymentId] = useState('')
-  const [qrPaymentStatus, setQrPaymentStatus] = useState('')
-  const [isLocalhost, setIsLocalhost] = useState(false)
   const { data: session } = useSession()
   const stripe = useStripe()
   const elements = useElements()
 
-  // Check if running on localhost
-  useEffect(() => {
-    const config = getLocalhostConfig()
-    setIsLocalhost(config.isLocalhost)
-  }, [])
-
-  // Generate QR code
-  const generateQRCode = async (qrPaymentId: string) => {
+  // Handle mobile payment success
+  const handleMobilePaymentSuccess = async (paymentMethod: string, paymentData: any) => {
     try {
-      // Generate a URL that works with phone cameras
-      const config = getLocalhostConfig()
-      const qrDataUrl = generateQRCodeData(qrPaymentId, 0, 'usd', config)
-      
-      const qrCodeDataUrl = await QRCode.toDataURL(qrDataUrl, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      })
-      return qrCodeDataUrl
-    } catch (error) {
-      console.error('QR code generation error:', error)
-      return null
-    }
-  }
+      if (paymentMethod === 'card' && paymentData.redirect) {
+        // Handle card payment through existing flow
+        setSelectedPaymentMethod('card')
+        return
+      }
 
-  // Check QR payment status
-  const checkQRPaymentStatus = async (paymentId: string) => {
-    try {
-      const response = await fetch(`/api/stripe-qr-payment/status?qrPaymentId=${paymentId}`)
-      const data = await response.json()
-      
-      if (data.success) {
-        setQrPaymentStatus(data.status)
-        if (data.status === 'completed') {
-          onComplete()
-        }
+      // For other mobile payments, redirect to success page
+      const orderId = paymentData.orderId || paymentData.paymentIntentId
+      if (orderId) {
+        window.location.href = `/order-confirmation?payment_intent=${orderId}`
+      } else {
+        onComplete()
       }
     } catch (error) {
-      console.error('QR payment status check error:', error)
+      console.error('Mobile payment success handling error:', error)
+      setPaymentError('Payment completed but there was an issue processing your order.')
     }
   }
 
-  // Effect to check QR payment status periodically
-  useEffect(() => {
-    if (qrPaymentId && qrPaymentStatus === 'pending') {
-      const interval = setInterval(() => {
-        checkQRPaymentStatus(qrPaymentId)
-      }, 3000) // Check every 3 seconds
+  // Handle mobile payment error
+  const handleMobilePaymentError = (error: string) => {
+    setPaymentError(error)
+  }
 
-      return () => clearInterval(interval)
-    }
-  }, [qrPaymentId, qrPaymentStatus])
 
   const handlePayment = async () => {
     setIsProcessing(true)
@@ -532,54 +499,8 @@ const PaymentMethodStep = ({
           onComplete()
         }
       } else {
-        // Handle QR payment with Stripe integration
-        const response = await fetch('/api/stripe-qr-payment/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: formData.total,
-            currency: 'usd',
-            customerInfo: {
-              user_id: session?.user?.id, // Include user ID for authenticated users
-              name: formData.cardholderName,
-              email: formData.email,
-              phone: formData.phone,
-              address: {
-                line1: formData.address,
-                city: formData.city,
-                state: formData.state,
-                postal_code: formData.zipCode,
-                country: 'US'
-              },
-              items: cart.map(item => ({
-                id: item.id,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                image: item.image
-              }))
-            }
-          })
-        })
-
-        const qrData = await response.json()
-        
-        if (qrData.error) {
-          setPaymentError(qrData.error)
-          setIsProcessing(false)
-        } else {
-          // Generate QR code
-          const qrCodeUrl = await generateQRCode(qrData.qrPaymentId)
-          if (qrCodeUrl) {
-            setQrCodeDataUrl(qrCodeUrl)
-            setQrPaymentId(qrData.qrPaymentId)
-            setQrPaymentStatus('pending')
-            setIsProcessing(false)
-          } else {
-            setPaymentError('Failed to generate QR code')
-            setIsProcessing(false)
-          }
-        }
+        // Mobile payment methods are handled by the MobilePaymentOptions component
+        setIsProcessing(false)
       }
     } catch (error) {
       console.error('Payment error:', error)
@@ -635,113 +556,42 @@ const PaymentMethodStep = ({
             )}
           </div>
 
-          {/* QR Payment */}
+          {/* Mobile Payment */}
           <div 
             className={`border-2 rounded-xl p-6 cursor-pointer transition-all ${
-              selectedPaymentMethod === 'qr' 
+              selectedPaymentMethod === 'mobile' 
                 ? 'border-emerald-500 bg-emerald-50' 
                 : 'border-gray-200 hover:border-gray-300'
             }`}
-            onClick={() => setSelectedPaymentMethod('qr')}
+            onClick={() => setSelectedPaymentMethod('mobile')}
           >
             <div className="flex items-center mb-4">
-              <QrCode className="h-6 w-6 text-emerald-600 mr-3" />
-              <h3 className="text-lg font-semibold text-gray-900">QR Code Payment</h3>
+              <Smartphone className="h-6 w-6 text-emerald-600 mr-3" />
+              <h3 className="text-lg font-semibold text-gray-900">Mobile Payment</h3>
             </div>
-            <p className="text-gray-600 mb-4">Scan QR code with your phone camera to open payment page</p>
+            <p className="text-gray-600 mb-4">Pay with Apple Pay, Google Pay, Chime, or Cash App</p>
             
-            {selectedPaymentMethod === 'qr' && (
-              <div className="space-y-4">
-                {qrCodeDataUrl ? (
-                  <div className="bg-white rounded-lg p-6 text-center border-2 border-emerald-200">
-                    <div className="mb-4">
-                      <img 
-                        src={qrCodeDataUrl} 
-                        alt="QR Code for Payment" 
-                        className="mx-auto border border-gray-200 rounded-lg"
-                      />
-                    </div>
-                     <div className="space-y-2">
-                       <p className="text-sm font-medium text-gray-900">
-                         Amount: ${formData.total.toFixed(2)}
-                       </p>
-                       <p className="text-sm text-gray-600">
-                         {isLocalhost 
-                           ? 'Scan with your phone camera to open the payment page'
-                           : 'Scan with your phone camera to open the payment page'
-                         }
-                       </p>
-                       <div className="flex items-center space-x-2 text-xs text-emerald-600">
-                         <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                         <span>Real-time payment processing</span>
-                       </div>
-                      
-                      {isLocalhost && qrPaymentStatus === 'pending' && (
-                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <p className="text-sm text-blue-800 font-medium mb-2">
-                            🧪 Development Testing
-                          </p>
-                          <p className="text-xs text-blue-700 mb-3">
-                            This QR code works in both localhost and production. For localhost testing, you can simulate payment completion.
-                          </p>
-                          <div className="space-y-2">
-                             <button
-                               onClick={async () => {
-                                 try {
-                                   const response = await fetch('/api/stripe-qr-payment/process', {
-                                     method: 'POST',
-                                     headers: { 'Content-Type': 'application/json' },
-                                     body: JSON.stringify({
-                                       qrPaymentId: qrPaymentId,
-                                       paymentMethod: 'test_payment',
-                                       paymentMethodId: 'pm_card_visa',
-                                       mobileAppData: {
-                                         app: 'test_app',
-                                         version: '1.0.0'
-                                       }
-                                     })
-                                   })
-                                   
-                                   if (response.ok) {
-                                     setQrPaymentStatus('completed')
-                                     setTimeout(() => onComplete(), 1000)
-                                   }
-                                 } catch (error) {
-                                   console.error('Test payment error:', error)
-                                 }
-                               }}
-                               className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 transition-colors mr-2"
-                             >
-                               Simulate Real Payment
-                             </button>
-                            <p className="text-xs text-blue-600">
-                              💡 In production, mobile payment apps can scan this QR code directly
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {qrPaymentStatus === 'pending' && !isLocalhost && (
-                        <div className="flex items-center justify-center space-x-2 text-emerald-600">
-                          <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                          <span className="text-sm">Waiting for payment...</span>
-                        </div>
-                      )}
-                      {qrPaymentStatus === 'completed' && (
-                        <div className="flex items-center justify-center space-x-2 text-green-600">
-                          <CheckCircle className="h-4 w-4" />
-                          <span className="text-sm font-medium">Payment completed!</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-gray-100 rounded-lg p-8 text-center">
-                    <QrCode className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">QR code will be generated after clicking "Complete Payment"</p>
-                  </div>
-                )}
-              </div>
+            {selectedPaymentMethod === 'mobile' && (
+              <MobilePaymentOptions
+                total={formData.total}
+                customerInfo={{
+                  name: formData.cardholderName,
+                  email: formData.email,
+                  phone: formData.phone,
+                  address: {
+                    line1: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    postal_code: formData.zipCode,
+                    country: 'US'
+                  },
+                  items: cart
+                }}
+                onPaymentSuccess={handleMobilePaymentSuccess}
+                onPaymentError={handleMobilePaymentError}
+                isProcessing={isProcessing}
+                setIsProcessing={setIsProcessing}
+              />
             )}
           </div>
         </div>
@@ -769,18 +619,13 @@ const PaymentMethodStep = ({
           
           <button
             onClick={handlePayment}
-            disabled={isProcessing || (selectedPaymentMethod === 'qr' && qrPaymentStatus === 'pending')}
+            disabled={isProcessing}
             className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
           >
             {isProcessing ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                {selectedPaymentMethod === 'qr' ? 'Generating QR Code...' : 'Processing...'}
-              </>
-            ) : selectedPaymentMethod === 'qr' && qrPaymentStatus === 'pending' ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                Waiting for Payment...
+                Processing...
               </>
             ) : (
               <>

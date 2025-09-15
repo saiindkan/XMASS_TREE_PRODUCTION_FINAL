@@ -23,6 +23,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <meta name="theme-color" content="#ffffff" />
+        
+        {/* Google Pay API */}
+        <script async src="https://pay.google.com/gp/p/js/pay.js"></script>
       </head>
       <body className="bg-white min-h-screen text-green-900 font-sans flex flex-col">
         <SessionProvider>

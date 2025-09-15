@@ -15,7 +15,6 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  QrCode,
   Apple,
   Smartphone
 } from "lucide-react";
@@ -103,23 +102,9 @@ const getPaymentMethodInfo = (paymentMethod: string) => {
         color: 'bg-blue-500 text-white',
         iconColor: 'text-white'
       };
-    case 'card (qr)':
-      return {
-        icon: CreditCard,
-        label: 'Card (QR)',
-        color: 'bg-purple-500 text-white',
-        iconColor: 'text-white'
-      };
-    case 'qr payment':
-      return {
-        icon: QrCode,
-        label: 'QR Payment',
-        color: 'bg-green-500 text-white',
-        iconColor: 'text-white'
-      };
     case 'test payment':
       return {
-        icon: QrCode,
+        icon: CreditCard,
         label: 'Test Payment',
         color: 'bg-yellow-500 text-black',
         iconColor: 'text-black'

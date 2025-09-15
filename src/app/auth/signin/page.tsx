@@ -158,7 +158,7 @@ function SignInContent() {
               <div className="space-y-4">
                 <div>
                   <label htmlFor="email-address" className="block text-sm font-medium text-white mb-2">
-                    Email address
+                    Email address <span className="text-red-400">*</span>
                   </label>
                   <input
                     id="email-address"
@@ -174,7 +174,7 @@ function SignInContent() {
                 </div>
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
-                    Password
+                    Password <span className="text-red-400">*</span>
                   </label>
                   <input
                     id="password"
