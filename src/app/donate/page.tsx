@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -91,46 +92,87 @@ function DonationForm() {
           <label className="block text-lg font-semibold text-gray-900 mb-4">
             Choose Your Donation Amount
           </label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+          
+          {/* Predefined Amounts */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             {donationAmounts.map((option) => (
               <button
                 key={option.amount}
                 type="button"
                 onClick={() => {
                   setSelectedAmount(option.amount);
-                  setCustomAmount("");
+                  setCustomAmount(option.amount.toString());
                 }}
-                className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                className={`p-4 rounded-xl border-2 transition-all duration-200 transform hover:scale-105 ${
                   selectedAmount === option.amount
-                    ? "border-red-500 bg-red-50 text-red-700"
-                    : "border-gray-200 hover:border-red-300 hover:bg-red-50"
+                    ? "border-red-500 bg-red-50 text-red-700 shadow-lg scale-105"
+                    : "border-gray-200 hover:border-red-300 hover:bg-red-50 hover:shadow-md"
                 }`}
               >
                 <div className="font-bold text-lg">{option.label}</div>
                 <div className="text-sm text-gray-600 mt-1">{option.description}</div>
+                {selectedAmount === option.amount && (
+                  <div className="mt-2 text-xs text-red-600 font-semibold">✓ Selected</div>
+                )}
               </button>
             ))}
           </div>
           
+          {/* Current Selection Display */}
+          {(selectedAmount || customAmount) && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-green-800 font-semibold">Selected Amount:</span>
+                  <span className="ml-2 text-xl font-bold text-green-700">
+                    ${selectedAmount || customAmount}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAmount(null);
+                    setCustomAmount("");
+                  }}
+                  className="text-green-600 hover:text-green-800 text-sm font-medium"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+          )}
+          
           {/* Custom Amount */}
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Or enter a custom amount:
+              Custom Amount (automatically filled from selection above):
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">$</span>
               <input
                 type="number"
                 min="1"
                 value={customAmount}
                 onChange={(e) => {
-                  setCustomAmount(e.target.value);
-                  setSelectedAmount(null);
+                  const value = e.target.value;
+                  setCustomAmount(value);
+                  // Clear predefined selection if user manually changes the amount
+                  if (value && selectedAmount && parseInt(value) !== selectedAmount) {
+                    setSelectedAmount(null);
+                  }
                 }}
-                placeholder="Enter amount"
-                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                placeholder="Enter custom amount or select from above"
+                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200"
               />
+              {customAmount && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <span className="text-green-600 text-sm font-semibold">✓</span>
+                </div>
+              )}
             </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Minimum donation: $1 • Amount updates automatically when you select predefined options above
+            </p>
           </div>
         </div>
 
@@ -188,7 +230,7 @@ function DonationForm() {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={!stripe || isLoading}
+          disabled={!stripe || isLoading || (!selectedAmount && !customAmount)}
           className="w-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-bold py-4 px-6 rounded-lg hover:from-red-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:-translate-y-1 hover:shadow-lg"
         >
           {isLoading ? (
@@ -200,7 +242,12 @@ function DonationForm() {
               Processing Donation...
             </span>
           ) : (
-            `Donate ${selectedAmount ? `$${selectedAmount}` : customAmount ? `$${customAmount}` : ''} 💝`
+            <span className="flex items-center justify-center">
+              💝 Donate ${selectedAmount || customAmount || '0'}
+              <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            </span>
           )}
         </button>
 
@@ -222,19 +269,34 @@ function DonationForm() {
 export default function DonatePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-rose-50">
-      {/* Hero Section */}
-      <section className="py-20 bg-gradient-to-r from-red-600 to-pink-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center px-4 py-2 rounded-full bg-white/20 text-white text-sm font-semibold mb-6">
+      {/* Hero Section with Christmas Background */}
+      <section className="relative py-20 overflow-hidden">
+        {/* Christmas Background */}
+        <div className="absolute inset-0">
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-fixed"
+            style={{
+              backgroundImage: 'url(https://images.unsplash.com/photo-1512389142860-9c449e58a543?auto=format&fit=crop&w=2000&q=80)',
+            }}
+          />
+          {/* Gradient Overlays */}
+          <div className="absolute inset-0 bg-gradient-to-br from-red-900/80 via-red-800/70 to-pink-800/80" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/30" />
+        </div>
+
+
+        {/* Content */}
+        <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="inline-flex items-center px-4 py-2 rounded-full bg-white/20 backdrop-blur-md text-white text-sm font-semibold mb-6 border border-white/30">
             <span className="text-white mr-2">💝</span>
             Support Our Mission
           </div>
           
-          <h1 className="text-4xl sm:text-6xl font-bold mb-6">
+          <h1 className="text-4xl sm:text-6xl font-bold mb-6 text-white drop-shadow-2xl" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)' }}>
             Help Us Spread Christmas Joy
           </h1>
           
-          <p className="text-xl sm:text-2xl mb-8 max-w-3xl mx-auto opacity-90">
+          <p className="text-xl sm:text-2xl mb-8 max-w-3xl mx-auto text-white opacity-95 drop-shadow-lg" style={{ textShadow: '1px 1px 4px rgba(0,0,0,0.8)' }}>
             Your generous donations help us provide premium Christmas trees and decorations 
             to families who need them most, ensuring everyone can experience the magic of Christmas.
           </p>
@@ -312,9 +374,12 @@ export default function DonatePage() {
           <p className="text-xl mb-8 max-w-2xl mx-auto opacity-90">
             Join our team of volunteers and help us distribute trees and decorations to families in need.
           </p>
-          <button className="px-8 py-4 bg-white text-red-600 font-bold text-lg rounded-full hover:bg-gray-100 transform hover:-translate-y-1 transition-all duration-300">
+          <Link
+            href="/contact"
+            className="px-8 py-4 bg-white text-red-600 font-bold text-lg rounded-full hover:bg-gray-100 transform hover:-translate-y-1 transition-all duration-300"
+          >
             Contact Us to Volunteer
-          </button>
+          </Link>
         </div>
       </section>
     </div>

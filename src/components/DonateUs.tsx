@@ -3,19 +3,33 @@ import Link from "next/link";
 
 export default function DonateUs() {
   return (
-    <section className="py-20 bg-gradient-to-br from-red-50 via-pink-50 to-rose-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="relative py-20 overflow-hidden">
+      {/* Christmas Red Background */}
+      <div className="absolute inset-0">
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-fixed"
+          style={{
+            backgroundImage: 'url(https://images.unsplash.com/photo-1482517967863-00e15c9b44be?auto=format&fit=crop&w=2000&q=80)',
+          }}
+        />
+        {/* Red Gradient Overlays */}
+        <div className="absolute inset-0 bg-gradient-to-br from-red-900/90 via-red-800/85 to-red-700/90" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/20" />
+      </div>
+
+
+      <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center px-4 py-2 rounded-full bg-red-100 text-red-800 text-sm font-semibold mb-6">
-            <span className="text-red-600 mr-2">💝</span>
+          <div className="inline-flex items-center px-4 py-2 rounded-full bg-white/20 backdrop-blur-md text-white text-sm font-semibold mb-6 border border-white/30">
+            <span className="text-white mr-2">💝</span>
             Support Our Mission
           </div>
           
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6 drop-shadow-2xl" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)' }}>
             Help Us Spread Christmas Joy
           </h2>
           
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-xl text-white opacity-95 max-w-3xl mx-auto leading-relaxed drop-shadow-lg" style={{ textShadow: '1px 1px 4px rgba(0,0,0,0.8)' }}>
             Your generous donations help us provide premium Christmas trees and decorations 
             to families who need them most, ensuring everyone can experience the magic of Christmas.
           </p>
@@ -23,8 +37,8 @@ export default function DonateUs() {
 
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           {/* Impact Card 1 */}
-          <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-red-100">
-            <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 border border-white/30 hover:bg-white">
+            <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
               <span className="text-2xl">🎄</span>
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">Trees for Families</h3>
@@ -35,8 +49,8 @@ export default function DonateUs() {
           </div>
 
           {/* Impact Card 2 */}
-          <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-red-100">
-            <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 border border-white/30 hover:bg-white">
+            <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
               <span className="text-2xl">🎁</span>
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">Community Support</h3>
@@ -47,8 +61,8 @@ export default function DonateUs() {
           </div>
 
           {/* Impact Card 3 */}
-          <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-red-100">
-            <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 border border-white/30 hover:bg-white">
+            <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
               <span className="text-2xl">🌟</span>
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">Sustainable Growth</h3>
@@ -60,7 +74,7 @@ export default function DonateUs() {
         </div>
 
         {/* Donation Stats */}
-        <div className="bg-white rounded-2xl p-8 shadow-lg border border-red-100 mb-12">
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-white/30 mb-12">
           <div className="grid md:grid-cols-4 gap-8 text-center">
             <div>
               <div className="text-3xl font-bold text-red-600 mb-2">500+</div>
@@ -83,16 +97,16 @@ export default function DonateUs() {
 
         {/* CTA Section */}
         <div className="text-center">
-          <div className="bg-gradient-to-r from-red-600 to-pink-600 rounded-2xl p-12 text-white">
-            <h3 className="text-3xl font-bold mb-4">Make a Difference This Christmas</h3>
-            <p className="text-xl mb-8 opacity-90">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-12 shadow-xl border border-white/30">
+            <h3 className="text-3xl font-bold mb-4 text-gray-900">Make a Difference This Christmas</h3>
+            <p className="text-xl mb-8 text-gray-600">
               Every donation, no matter the size, helps us bring Christmas joy to families in need.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link
                 href="/donate"
-                className="group px-8 py-4 bg-white text-red-600 font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+                className="group px-8 py-4 bg-gradient-to-r from-red-600 to-pink-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
               >
                 <span className="flex items-center">
                   💝 Donate Now
@@ -104,7 +118,7 @@ export default function DonateUs() {
               
               <Link
                 href="/donate#volunteer"
-                className="px-8 py-4 bg-white/20 backdrop-blur-md border border-white/30 text-white font-semibold text-lg rounded-full hover:bg-white/30 transform hover:-translate-y-1 transition-all duration-300"
+                className="px-8 py-4 bg-white/80 backdrop-blur-md border border-red-200 text-red-600 font-semibold text-lg rounded-full hover:bg-white hover:border-red-300 transform hover:-translate-y-1 transition-all duration-300"
               >
                 Volunteer With Us
               </Link>

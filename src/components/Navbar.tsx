@@ -52,10 +52,6 @@ export default function Navbar() {
             Decors
             <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-600 transition-all duration-200 group-hover:w-full"></span>
           </Link>
-          <Link href="/deals" className="text-slate-700 hover:text-emerald-600 font-medium transition-colors duration-200 relative group">
-            Deals
-            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-600 transition-all duration-200 group-hover:w-full"></span>
-          </Link>
           <Link href="/about" className="text-slate-700 hover:text-emerald-600 font-medium transition-colors duration-200 relative group">
             About
             <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-600 transition-all duration-200 group-hover:w-full"></span>
@@ -148,7 +144,6 @@ export default function Navbar() {
             <Link href="/" className="text-lg font-semibold text-slate-700 hover:text-emerald-600 transition-colors duration-200 py-2" onClick={closeMenus}>Home</Link>
             <Link href="/products" className="text-lg font-semibold text-slate-700 hover:text-emerald-600 transition-colors duration-200 py-2" onClick={closeMenus}>Shop</Link>
             <Link href="/decors" className="text-lg font-semibold text-slate-700 hover:text-emerald-600 transition-colors duration-200 py-2" onClick={closeMenus}>Decors</Link>
-            <Link href="/deals" className="text-lg font-semibold text-slate-700 hover:text-emerald-600 transition-colors duration-200 py-2" onClick={closeMenus}>Deals</Link>
             <Link href="/about" className="text-lg font-semibold text-slate-700 hover:text-emerald-600 transition-colors duration-200 py-2" onClick={closeMenus}>About</Link>
             <Link href="/contact" className="text-lg font-semibold text-slate-700 hover:text-emerald-600 transition-colors duration-200 py-2" onClick={closeMenus}>Contact</Link>
             
